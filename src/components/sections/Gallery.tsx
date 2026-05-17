@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Image as ImageIcon, Play, Heart, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Play, Heart, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -66,6 +66,7 @@ export function Gallery() {
   const [currentPage, setCurrentPage] = useState(1);
   const [galleryItems, setGalleryItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
   
   const ITEMS_PER_PAGE = 6;
 
@@ -100,8 +101,10 @@ export function Gallery() {
     // Update local state optimistically
     const updated = [...galleryItems];
     const actualIndex = (currentPage - 1) * ITEMS_PER_PAGE + index;
-    updated[actualIndex] = { ...updated[actualIndex], likes: newLikes };
-    setGalleryItems(updated);
+    if (updated[actualIndex]) {
+      updated[actualIndex] = { ...updated[actualIndex], likes: newLikes };
+      setGalleryItems(updated);
+    }
 
     if (id) {
       try {
@@ -110,6 +113,74 @@ export function Gallery() {
         console.error('Failed to update likes in DB:', err);
       }
     }
+  };
+
+  const isYouTube = (url: string) => url && (url.includes('youtube.com') || url.includes('youtu.be'));
+  const isGoogleDrive = (url: string) => url && url.includes('drive.google.com');
+  const isTikTok = (url: string) => url && url.includes('tiktok.com');
+  const isInstagram = (url: string) => url && url.includes('instagram.com');
+  const isFacebook = (url: string) => url && url.includes('facebook.com');
+
+  const getYouTubeThumbnail = (url: string) => {
+    if (!url) return null;
+    let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    let match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://img.youtube.com/vi/${match[2]}/hqdefault.jpg`;
+    }
+    if (url.includes('/shorts/')) {
+      const shortsId = url.split('/shorts/')[1]?.split('?')[0];
+      if (shortsId) {
+        return `https://img.youtube.com/vi/${shortsId}/hqdefault.jpg`;
+      }
+    }
+    return null;
+  };
+
+  const getEmbedUrl = (url: string) => {
+    if (!url) return '';
+    
+    if (isYouTube(url)) {
+      let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      let match = url.match(regExp);
+      if (match && match[2].length === 11) {
+        return `https://www.youtube.com/embed/${match[2]}?autoplay=1`;
+      }
+      if (url.includes('/shorts/')) {
+        const shortsId = url.split('/shorts/')[1]?.split('?')[0];
+        if (shortsId) {
+          return `https://www.youtube.com/embed/${shortsId}?autoplay=1`;
+        }
+      }
+    }
+    
+    if (isGoogleDrive(url)) {
+      const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (fileIdMatch && fileIdMatch[1]) {
+        return `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+      }
+    }
+    
+    if (isTikTok(url)) {
+      const match = url.match(/\/video\/([0-9]+)/);
+      if (match && match[1]) {
+        return `https://www.tiktok.com/embed/v2/${match[1]}`;
+      }
+    }
+    
+    if (isInstagram(url)) {
+      let cleanedUrl = url.split('?')[0];
+      if (cleanedUrl.endsWith('/')) {
+        cleanedUrl = cleanedUrl.slice(0, -1);
+      }
+      return `${cleanedUrl}/embed`;
+    }
+    
+    if (isFacebook(url)) {
+      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0`;
+    }
+    
+    return url;
   };
 
   const totalPages = Math.ceil(galleryItems.length / ITEMS_PER_PAGE);
@@ -157,11 +228,48 @@ export function Gallery() {
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.05 }}
                     whileHover={{ y: -10, scale: 1.03 }}
+                    onClick={() => setSelectedItem(item)}
                     className="relative aspect-[4/3] rounded-3xl bg-gradient-to-br from-cyan-900/30 to-teal-900/20 backdrop-blur-xl border border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] overflow-hidden group cursor-pointer"
                   >
                     {/* Media render (Image or Video) */}
                     {item.url ? (
-                      item.type === 'video' ? (
+                      isYouTube(item.url) ? (
+                        <img
+                          src={getYouTubeThumbnail(item.url) || ''}
+                          alt={item.title}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      ) : isGoogleDrive(item.url) ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-cyan-950/40 p-4 text-center">
+                          <Play className="w-10 h-10 text-cyan-400 mb-2 animate-pulse" />
+                          <span className="text-cyan-200 text-xs font-semibold">Video Google Drive</span>
+                        </div>
+                      ) : isTikTok(item.url) ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#0b0e14] to-[#121212] p-4 text-center">
+                          <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 mb-3 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                            <Play className="w-5 h-5 text-cyan-400 fill-cyan-400" />
+                          </div>
+                          <span className="text-white font-bold text-sm">Video TikTok</span>
+                          <span className="text-cyan-300/60 text-xs mt-1">Klik untuk memutar</span>
+                        </div>
+                      ) : isInstagram(item.url) ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] opacity-80 p-4 text-center">
+                          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/20 mb-3 shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                            <Play className="w-5 h-5 text-white fill-white" />
+                          </div>
+                          <span className="text-white font-bold text-sm">Postingan Instagram</span>
+                          <span className="text-white/80 text-xs mt-1">Klik untuk melihat</span>
+                        </div>
+                      ) : isFacebook(item.url) ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1877f2]/20 to-[#1877f2]/40 p-4 text-center">
+                          <div className="w-12 h-12 rounded-full bg-[#1877f2]/10 flex items-center justify-center border border-[#1877f2]/30 mb-3 shadow-[0_0_15px_rgba(24,119,242,0.3)]">
+                            <Play className="w-5 h-5 text-[#1877f2] fill-[#1877f2]" />
+                          </div>
+                          <span className="text-white font-bold text-sm">Video Facebook</span>
+                          <span className="text-cyan-300/60 text-xs mt-1">Klik untuk memutar</span>
+                        </div>
+                      ) : item.type === 'video' ? (
                         <video
                           src={item.url}
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -187,22 +295,22 @@ export function Gallery() {
                     {/* Dark gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 group-hover:via-black/50 transition-all duration-300" />
 
-                    {/* Play icon badge for videos (Top-left, always visible) */}
-                    {item.type === 'video' && (
+                    {/* Play icon badge for videos (Top-left) */}
+                    {(item.type === 'video' || isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) && (
                       <div className="absolute top-4 left-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
                         <Play className="w-4 h-4 text-white fill-white" />
                       </div>
                     )}
 
                     {/* Image icon badge for images (Top-right) */}
-                    {item.type === 'image' && (
+                    {item.type === 'image' && !isYouTube(item.url) && !isInstagram(item.url) && (
                       <div className="absolute top-4 right-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
                         <ImageIcon className="w-4 h-4 text-white" />
                       </div>
                     )}
 
                     {/* Hover instructions for video */}
-                    {item.type === 'video' && item.url && (
+                    {item.type === 'video' && item.url && !isYouTube(item.url) && !isGoogleDrive(item.url) && !isTikTok(item.url) && !isInstagram(item.url) && !isFacebook(item.url) && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity duration-300 z-10">
                         <span className="px-3 py-1.5 rounded-full bg-cyan-950/80 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium">
                           Arahkan kursor untuk memutar video
@@ -210,7 +318,15 @@ export function Gallery() {
                       </div>
                     )}
 
-                    {/* Info section (Always visible or transitions on hover) */}
+                    {(isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <span className="px-3 py-1.5 rounded-full bg-cyan-950/85 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium group-hover:scale-105 transition-transform duration-300">
+                          Klik untuk putar video
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Info section (Always visible) */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
                       <h3 className="text-white font-bold text-lg mb-2 line-clamp-1 group-hover:text-cyan-200 transition-colors">
                         {item.title}
@@ -231,7 +347,7 @@ export function Gallery() {
                         </motion.button>
 
                         <span className="text-cyan-300/40 text-xs uppercase tracking-wider font-semibold">
-                          {item.type === 'video' ? 'Video' : 'Foto'}
+                          {(isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) ? 'Video Medsos' : item.type === 'video' ? 'Video' : 'Foto'}
                         </span>
                       </div>
                     </div>
@@ -293,6 +409,93 @@ export function Gallery() {
           </>
         )}
       </div>
+
+      {/* ── DETAIL MODAL POPUP ── */}
+      <AnimatePresence>
+        {selectedItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setSelectedItem(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="relative w-full max-w-4xl bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setSelectedItem(null)}
+                className="absolute top-4 right-4 p-2.5 rounded-full bg-black/60 backdrop-blur-md border border-cyan-500/30 text-white hover:bg-red-500/20 hover:text-red-400 transition-all z-50 animate-pulse"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Media Display Container */}
+              <div className="relative aspect-video w-full bg-black flex items-center justify-center">
+                {selectedItem.url ? (
+                  (isYouTube(selectedItem.url) || isGoogleDrive(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url)) ? (
+                    <iframe
+                      src={getEmbedUrl(selectedItem.url)}
+                      title={selectedItem.title}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  ) : selectedItem.type === 'video' ? (
+                    <video
+                      src={selectedItem.url}
+                      className="w-full h-full object-contain"
+                      controls
+                      autoPlay
+                    />
+                  ) : (
+                    <img
+                      src={selectedItem.url}
+                      alt={selectedItem.title}
+                      className="w-full h-full object-contain"
+                    />
+                  )
+                ) : (
+                  <div className={`w-full h-full bg-gradient-to-br ${selectedItem.gradient} flex items-center justify-center opacity-70`}>
+                    <span className="text-white font-bold text-xl">{selectedItem.title}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Info Bar */}
+              <div className="p-6 border-t border-cyan-500/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-white font-bold text-xl mb-1">{selectedItem.title}</h3>
+                  <span className="text-cyan-300/60 text-sm uppercase font-semibold tracking-wider">
+                    {isYouTube(selectedItem.url) ? 'Video YouTube' : isTikTok(selectedItem.url) ? 'Video TikTok' : isInstagram(selectedItem.url) ? 'Instagram Post' : isFacebook(selectedItem.url) ? 'Video Facebook' : selectedItem.type === 'video' ? 'Video' : 'Foto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const idx = galleryItems.findIndex(g => g.id === selectedItem.id || g.title === selectedItem.title);
+                      if (idx !== -1) {
+                        handleLike(selectedItem.id, selectedItem.likes, idx);
+                        setSelectedItem({ ...selectedItem, likes: selectedItem.likes + 1 });
+                      }
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-cyan-900/40 to-teal-900/40 border border-cyan-500/30 hover:border-red-500/30 hover:bg-red-500/10 text-cyan-200 hover:text-red-400 transition-all font-semibold"
+                  >
+                    <Heart className="w-5 h-5 text-teal-400 fill-teal-400" />
+                    <span>{selectedItem.likes} Likes</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
