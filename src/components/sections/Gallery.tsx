@@ -246,28 +246,41 @@ export function Gallery() {
                           <span className="text-cyan-200 text-xs font-semibold">Video Google Drive</span>
                         </div>
                       ) : isTikTok(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#0b0e14] to-[#121212] p-4 text-center">
-                          <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 mb-3 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-                            <Play className="w-5 h-5 text-cyan-400 fill-cyan-400" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#051c24] to-[#1a0510] p-4 text-center overflow-hidden">
+                          <div className="absolute top-1/4 -left-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl animate-pulse" />
+                          <div className="absolute bottom-1/4 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+                          
+                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_20px_rgba(244,63,94,0.15)] group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-9 h-9 text-white filter drop-shadow-[2px_0_0_#00f2fe] drop-shadow-[-2px_0_0_#fe0979]" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.09-1.51-.71-.53-1.3-1.22-1.74-2v7.92c0 2.02-.6 4.12-2.02 5.56-1.5 1.56-3.83 2.25-5.96 1.88-2.1-.34-4.01-1.78-4.89-3.73-.97-2.11-.75-4.75.61-6.65 1.34-1.9 3.73-2.92 6.06-2.58v4.13c-1.24-.26-2.61.12-3.46 1.07-.81.89-1.01 2.27-.47 3.39.52 1.09 1.75 1.83 2.95 1.71 1.2-.08 2.24-1.02 2.45-2.21.07-.46.06-.93.06-1.39V.02z"/>
+                            </svg>
                           </div>
-                          <span className="text-white font-bold text-sm">Video TikTok</span>
-                          <span className="text-cyan-300/60 text-xs mt-1">Klik untuk memutar</span>
+                          <span className="text-white font-extrabold text-sm tracking-wide z-10">VIDEO TIKTOK</span>
+                          <span className="text-cyan-400 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
                         </div>
                       ) : isInstagram(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] opacity-80 p-4 text-center">
-                          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/20 mb-3 shadow-[0_0_15px_rgba(255,255,255,0.3)]">
-                            <Play className="w-5 h-5 text-white fill-white" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] p-4 text-center overflow-hidden">
+                          <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
+                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                            </svg>
                           </div>
-                          <span className="text-white font-bold text-sm">Postingan Instagram</span>
-                          <span className="text-white/80 text-xs mt-1">Klik untuk melihat</span>
+                          <span className="text-white font-extrabold text-sm tracking-wide z-10">INSTAGRAM REEL</span>
+                          <span className="text-white/90 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MELIHAT</span>
                         </div>
                       ) : isFacebook(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1877f2]/20 to-[#1877f2]/40 p-4 text-center">
-                          <div className="w-12 h-12 rounded-full bg-[#1877f2]/10 flex items-center justify-center border border-[#1877f2]/30 mb-3 shadow-[0_0_15px_rgba(24,119,242,0.3)]">
-                            <Play className="w-5 h-5 text-[#1877f2] fill-[#1877f2]" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0e1e38] to-[#0a1120] p-4 text-center overflow-hidden border-t border-blue-500/20">
+                          <div className="absolute inset-0 bg-[#1877f2]/5 rounded-full blur-3xl animate-pulse" />
+                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-[#1877f2]/10 backdrop-blur-md rounded-2xl border border-[#1877f2]/30 shadow-[0_0_20px_rgba(24,119,242,0.2)] group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-9 h-9 text-white fill-current" viewBox="0 0 24 24">
+                              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                            </svg>
                           </div>
-                          <span className="text-white font-bold text-sm">Video Facebook</span>
-                          <span className="text-cyan-300/60 text-xs mt-1">Klik untuk memutar</span>
+                          <span className="text-white font-extrabold text-sm tracking-wide z-10">FACEBOOK VIDEO</span>
+                          <span className="text-[#1877f2] text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
                         </div>
                       ) : item.type === 'video' ? (
                         <video
@@ -420,31 +433,35 @@ export function Gallery() {
             className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
             onClick={() => setSelectedItem(null)}
           >
+            {/* Viewport Fixed Close Button - Immune to overlap and 100% clickproof */}
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => setSelectedItem(null)}
+              className="fixed top-6 right-6 md:top-8 md:right-8 p-3 rounded-full bg-black/60 backdrop-blur-md border border-cyan-500/30 text-white hover:bg-red-500 hover:text-red-400 transition-all z-[120] shadow-[0_0_20px_rgba(6,182,212,0.2)]"
+              title="Tutup (Esc)"
+            >
+              <X className="w-6 h-6" />
+            </motion.button>
+
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               className={`relative w-full ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
-                  ? 'max-w-[420px]' 
+                  ? 'max-w-[390px]' 
                   : 'max-w-4xl'
-              } bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
+              } max-h-[90vh] flex flex-col bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
               onClick={e => e.stopPropagation()}
             >
-              {/* Close Button */}
-              <button 
-                onClick={() => setSelectedItem(null)}
-                className="absolute top-4 right-4 p-2.5 rounded-full bg-black/60 backdrop-blur-md border border-cyan-500/30 text-white hover:bg-red-500/20 hover:text-red-400 transition-all z-50 animate-pulse"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
               {/* Media Display Container */}
               <div className={`relative ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
-                  ? 'aspect-[9/16] max-h-[75vh]' 
+                  ? 'aspect-[9/16] max-h-[55vh] md:max-h-[62vh]' 
                   : 'aspect-video'
-              } w-full bg-black flex items-center justify-center`}>
+              } w-full bg-black flex items-center justify-center overflow-hidden`}>
                 {selectedItem.url ? (
                   (isYouTube(selectedItem.url) || isGoogleDrive(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url)) ? (
                     <iframe
@@ -476,15 +493,15 @@ export function Gallery() {
               </div>
 
               {/* Info Bar */}
-              <div className="p-6 border-t border-cyan-500/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-white font-bold text-xl mb-1">{selectedItem.title}</h3>
-                  <span className="text-cyan-300/60 text-sm uppercase font-semibold tracking-wider">
+              <div className="p-5 border-t border-cyan-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-b from-transparent to-[#00080d]/60">
+                <div className="min-w-0">
+                  <h3 className="text-white font-bold text-lg mb-1 truncate">{selectedItem.title}</h3>
+                  <span className="text-cyan-300/60 text-xs uppercase font-semibold tracking-wider">
                     {isYouTube(selectedItem.url) ? 'Video YouTube' : isTikTok(selectedItem.url) ? 'Video TikTok' : isInstagram(selectedItem.url) ? 'Instagram Post' : isFacebook(selectedItem.url) ? 'Video Facebook' : selectedItem.type === 'video' ? 'Video' : 'Foto'}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
                       const idx = galleryItems.findIndex(g => g.id === selectedItem.id || g.title === selectedItem.title);
@@ -493,10 +510,17 @@ export function Gallery() {
                         setSelectedItem({ ...selectedItem, likes: selectedItem.likes + 1 });
                       }
                     }}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-cyan-900/40 to-teal-900/40 border border-cyan-500/30 hover:border-red-500/30 hover:bg-red-500/10 text-cyan-200 hover:text-red-400 transition-all font-semibold"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-900/40 to-teal-900/40 border border-cyan-500/30 hover:border-red-500/30 hover:bg-red-500/10 text-cyan-200 hover:text-red-400 transition-all font-semibold text-sm"
                   >
-                    <Heart className="w-5 h-5 text-teal-400 fill-teal-400" />
+                    <Heart className="w-4 h-4 text-teal-400 fill-teal-400" />
                     <span>{selectedItem.likes} Likes</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedItem(null)}
+                    className="px-4 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 text-white transition-all font-semibold text-sm"
+                  >
+                    Tutup
                   </button>
                 </div>
               </div>
