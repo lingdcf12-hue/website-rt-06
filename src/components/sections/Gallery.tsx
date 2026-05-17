@@ -238,7 +238,8 @@ export function Gallery() {
 
   const fetchTiktokThumbnail = async (id: string, url: string) => {
     try {
-      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
+      // Menggunakan allorigins raw sebagai alternatif proxy yang lebih stabil di Vercel
+      const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.thumbnail_url) {
