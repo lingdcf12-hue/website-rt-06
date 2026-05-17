@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS gallery (
   likes INTEGER DEFAULT 0,
   gradient TEXT DEFAULT 'from-cyan-500 to-teal-500',
   url TEXT NOT NULL,
+  thumbnail_url TEXT, -- URL Cover Thumbnail Opsional
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

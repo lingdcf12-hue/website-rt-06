@@ -203,20 +203,37 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
       finalUrl = `${finalUrl.trim()}||thumb||${galleryThumbnail.trim()}`;
     }
 
-    const payload = {
+    const payload: any = {
       title: galleryForm.title,
       type: galleryForm.type,
       gradient: galleryForm.gradient,
       url: finalUrl,
-      likes: galleryForm.likes || 0
+      likes: galleryForm.likes || 0,
+      thumbnail_url: galleryThumbnail.trim() || null
     };
 
     if (editingGalleryId) {
-      const { error } = await supabase.from('gallery').update(payload).eq('id', editingGalleryId);
+      let { error } = await supabase.from('gallery').update(payload).eq('id', editingGalleryId);
+      if (error && (error.message.includes('column') || error.message.includes('tidak ada') || error.code === '42703')) {
+        // Fallback retry without thumbnail_url column
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.thumbnail_url;
+        const retry = await supabase.from('gallery').update(fallbackPayload).eq('id', editingGalleryId);
+        error = retry.error;
+      }
+      
       if (error) toast.error('Gagal update galeri');
       else { toast.success('Galeri diupdate!'); setEditingGalleryId(null); }
     } else {
-      const { error } = await supabase.from('gallery').insert(payload);
+      let { error } = await supabase.from('gallery').insert(payload);
+      if (error && (error.message.includes('column') || error.message.includes('tidak ada') || error.code === '42703')) {
+        // Fallback retry without thumbnail_url column
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.thumbnail_url;
+        const retry = await supabase.from('gallery').insert(fallbackPayload);
+        error = retry.error;
+      }
+      
       if (error) toast.error('Gagal tambah galeri');
       else toast.success('Galeri ditambahkan!');
     }
@@ -229,6 +246,15 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
 
     setSaving(false);
     fetchAll();
+  };
+
+  const getGoogleDriveImageUrl = (url: string) => {
+    if (!url) return '';
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/) || url.match(/id=([a-zA-Z0-9-_]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}`;
+    }
+    return url;
   };
 
   const deleteGalleryItem = async (id: string, url: string) => {
@@ -665,15 +691,19 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                               {g.url ? (() => {
                                 const parts = g.url.split('||thumb||');
                                 const mediaUrl = parts[0];
-                                const thumbUrl = parts[1] || '';
-                                return g.type === 'video' ? (
-                                  thumbUrl ? (
-                                    <img src={thumbUrl} className="w-12 h-12 rounded-xl object-cover" />
-                                  ) : (
-                                    <video src={mediaUrl} className="w-12 h-12 rounded-xl object-cover bg-black/40" muted />
-                                  )
+                                const rawThumbUrl = g.thumbnail_url || parts[1] || '';
+                                const thumbUrl = rawThumbUrl.includes('drive.google.com')
+                                  ? getGoogleDriveImageUrl(rawThumbUrl)
+                                  : rawThumbUrl;
+                                const finalMediaUrl = mediaUrl.includes('drive.google.com') && g.type === 'image'
+                                  ? getGoogleDriveImageUrl(mediaUrl)
+                                  : mediaUrl;
+                                return thumbUrl ? (
+                                  <img src={thumbUrl} className="w-16 h-12 rounded-xl object-cover bg-black/40" />
+                                ) : g.type === 'video' ? (
+                                  <video src={finalMediaUrl} className="w-16 h-12 rounded-xl object-cover bg-black/40" muted />
                                 ) : (
-                                  <img src={mediaUrl} className="w-12 h-12 rounded-xl object-cover" />
+                                  <img src={finalMediaUrl} className="w-16 h-12 rounded-xl object-cover bg-black/40" />
                                 );
                               })() : (
                                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${g.gradient || 'from-cyan-500 to-teal-500'} opacity-40`} />
@@ -687,11 +717,13 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                               <button onClick={() => {
                                 setEditingGalleryId(g.id);
                                 let mediaUrl = g.url || '';
-                                let thumbUrl = '';
+                                let thumbUrl = g.thumbnail_url || '';
                                 if (mediaUrl.includes('||thumb||')) {
                                   const parts = mediaUrl.split('||thumb||');
                                   mediaUrl = parts[0];
-                                  thumbUrl = parts[1];
+                                  if (!thumbUrl) {
+                                    thumbUrl = parts[1];
+                                  }
                                 }
                                 setGalleryForm({ title: g.title, type: g.type, gradient: g.gradient, url: mediaUrl, likes: g.likes });
                                 setGalleryThumbnail(thumbUrl);

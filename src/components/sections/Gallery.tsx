@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Image as ImageIcon, Play, Heart, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
+import { Image as ImageIcon, Play, Video as VideoIcon, Heart, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -67,14 +67,35 @@ export function Gallery() {
   const [galleryItems, setGalleryItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [modalImageError, setModalImageError] = useState(false);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const [tiktokThumbnails, setTiktokThumbnails] = useState<Record<string, string>>({});
+  const [instagramThumbnails, setInstagramThumbnails] = useState<Record<string, string>>({});
   
   const ITEMS_PER_PAGE = 6;
 
   useEffect(() => {
     fetchGallery();
   }, []);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setModalImageError(false);
+    }
+  }, [selectedItem]);
+
+  useEffect(() => {
+    galleryItems.forEach((item, index) => {
+      const { mediaUrl, thumbnailUrl } = parseGalleryUrl(item.url, item.thumbnail_url);
+      if (!thumbnailUrl && isTikTok(mediaUrl)) {
+        const itemId = item.id || `item-${index}`;
+        const videoId = getTikTokVideoId(mediaUrl);
+        if (videoId && !tiktokThumbnails[itemId]) {
+          fetchTiktokThumbnail(itemId, mediaUrl);
+        }
+      }
+    });
+  }, [galleryItems]);
 
   const fetchGallery = async () => {
     try {
@@ -123,12 +144,27 @@ export function Gallery() {
   const isInstagram = (url: string) => url && url.includes('instagram.com');
   const isFacebook = (url: string) => url && url.includes('facebook.com');
 
+  const getTikTokVideoId = (url: string) => {
+    if (!url) return null;
+    const match = url.match(/\/video\/(\d+)/);
+    return match ? match[1] : null;
+  };
+
+  const getInstagramShortcode = (url: string) => {
+    if (!url) return null;
+    const match = url.match(/\/(p|reel|tv)\/([a-zA-Z0-9-_]+)/);
+    return match ? match[2] : null;
+  };
+
   const handleImageError = (key: string) => {
     setImageErrors(prev => ({ ...prev, [key]: true }));
   };
 
-  const parseGalleryUrl = (url: string) => {
+  const parseGalleryUrl = (url: string, dbThumbnailUrl?: string) => {
     if (!url) return { mediaUrl: '', thumbnailUrl: '' };
+    if (dbThumbnailUrl) {
+      return { mediaUrl: url, thumbnailUrl: dbThumbnailUrl };
+    }
     if (url.includes('||thumb||')) {
       const parts = url.split('||thumb||');
       return { mediaUrl: parts[0], thumbnailUrl: parts[1] };
@@ -136,36 +172,40 @@ export function Gallery() {
     return { mediaUrl: url, thumbnailUrl: '' };
   };
 
-  const getYouTubeThumbnail = (url: string) => {
+  const getYouTubeVideoId = (url: string): string | null => {
     if (!url) return null;
-    let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    let match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      return `https://img.youtube.com/vi/${match[2]}/hqdefault.jpg`;
-    }
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) return match[2];
     if (url.includes('/shorts/')) {
       const shortsId = url.split('/shorts/')[1]?.split('?')[0];
-      if (shortsId) {
-        return `https://img.youtube.com/vi/${shortsId}/hqdefault.jpg`;
-      }
+      if (shortsId) return shortsId;
     }
     return null;
   };
 
+  const getYouTubeThumbnail = (url: string) => {
+    const id = getYouTubeVideoId(url);
+    if (!id) return null;
+    // hqdefault (480x360) is always available; maxresdefault may 404
+    return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+  };
+
   const getGoogleDriveThumbnail = (url: string) => {
     if (!url) return null;
-    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/) || url.match(/id=([a-zA-Z0-9-_]+)/);
     if (fileIdMatch && fileIdMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w600`;
+      // Use lh3 for thumbnails – more reliably served without auth redirects
+      return `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}=w600`;
     }
     return null;
   };
 
   const getGoogleDriveImageUrl = (url: string) => {
     if (!url) return '';
-    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/) || url.match(/id=([a-zA-Z0-9-_]+)/);
     if (fileIdMatch && fileIdMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w1600`;
+      return `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}`;
     }
     return url;
   };
@@ -174,23 +214,66 @@ export function Gallery() {
     if (!url) return null;
     const match = url.match(/\/(p|reel|tv)\/([a-zA-Z0-9-_]+)/);
     if (match && match[2]) {
-      return `https://www.instagram.com/p/${match[2]}/media/?size=l`;
+      return `https://images.weserv.nl/?url=${encodeURIComponent(`https://www.instagram.com/p/${match[2]}/media/?size=l`)}`;
     }
     return null;
   };
 
+  const getSuggestedThumbnail = (title: string): string => {
+    const t = (title || '').toLowerCase();
+    if (t.includes('bakti') || t.includes('gotong') || t.includes('bersih')) {
+      return 'https://images.unsplash.com/photo-1618477388954-7852f32655ec?auto=format&fit=crop&q=80&w=800';
+    }
+    if (t.includes('kegiatan') || t.includes('senam') || t.includes('sehat')) {
+      return 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800';
+    }
+    if (t.includes('rapat') || t.includes('musyawarah') || t.includes('rt')) {
+      return 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=800';
+    }
+    if (t.includes('lomba') || t.includes('tujuh') || t.includes('agustus')) {
+      return 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=800';
+    }
+    return 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&q=80&w=800';
+  };
+
   const fetchTiktokThumbnail = async (id: string, url: string) => {
     try {
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
+      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
       if (response.ok) {
         const data = await response.json();
-        const parsed = JSON.parse(data.contents);
-        if (parsed.thumbnail_url) {
-          setTiktokThumbnails(prev => ({ ...prev, [id]: parsed.thumbnail_url }));
+        if (data.thumbnail_url) {
+          const cachedThumb = `https://images.weserv.nl/?url=${encodeURIComponent(data.thumbnail_url)}`;
+          setTiktokThumbnails(prev => ({ ...prev, [id]: cachedThumb }));
         }
       }
     } catch (err) {
       console.error('Failed to fetch TikTok thumbnail:', err);
+    }
+  };
+
+  const fetchInstagramThumbnail = async (id: string, url: string) => {
+    try {
+      let cleanUrl = url.split('?')[0];
+      if (!cleanUrl.endsWith('/')) {
+        cleanUrl += '/';
+      }
+      
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(cleanUrl)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const html = data.contents || '';
+        
+        // Extract meta tag og:image using regular expression
+        const ogImageMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/) || 
+                             html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/);
+                             
+        if (ogImageMatch && ogImageMatch[1]) {
+          const thumbUrl = ogImageMatch[1].replace(/&amp;/g, '&');
+          setInstagramThumbnails(prev => ({ ...prev, [id]: thumbUrl }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch Instagram thumbnail:', err);
     }
   };
 
@@ -253,6 +336,9 @@ export function Gallery() {
       if (item.url && isTikTok(item.url) && !tiktokThumbnails[id] && !imageErrors[id]) {
         fetchTiktokThumbnail(id, item.url);
       }
+      if (item.url && isInstagram(item.url) && !instagramThumbnails[id] && !imageErrors[id]) {
+        fetchInstagramThumbnail(id, item.url);
+      }
     });
   }, [galleryItems, currentPage]);
 
@@ -300,39 +386,66 @@ export function Gallery() {
                   >
                     {/* Media render (Image or Video) */}
                     {item.url ? (() => {
-                      const { mediaUrl, thumbnailUrl } = parseGalleryUrl(item.url);
+                      const { mediaUrl, thumbnailUrl } = parseGalleryUrl(item.url, item.thumbnail_url);
                       
-                      // Prioritize custom thumbnail if present and hasn't failed to load
-                      if (thumbnailUrl && !imageErrors[item.id || index]) {
-                        return (
-                          <img
-                            src={thumbnailUrl}
-                            alt={item.title}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            loading="lazy"
-                            onError={() => handleImageError(item.id || index)}
-                          />
-                        );
-                      }
+                       // Prioritize custom thumbnail if present and hasn't failed to load
+                       if (thumbnailUrl && !imageErrors[item.id || index]) {
+                         const finalThumbSrc = isGoogleDrive(thumbnailUrl)
+                           ? getGoogleDriveImageUrl(thumbnailUrl)
+                           : thumbnailUrl;
+                         return (
+                           <img
+                             src={finalThumbSrc}
+                             alt={item.title}
+                             className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                             loading="lazy"
+                             onError={() => handleImageError(item.id || index)}
+                           />
+                         );
+                       }
 
                       if (isYouTube(mediaUrl)) {
-                        return (
-                          <img
-                            src={getYouTubeThumbnail(mediaUrl) || ''}
-                            alt={item.title}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            loading="lazy"
-                          />
-                        );
+                        const ytId = getYouTubeVideoId(mediaUrl);
+                        return ytId ? (
+                          <>
+                            <img
+                              key={`yt-${ytId}-${imageErrors[item.id || `yt-${index}`] ? 'mq' : 'hq'}`}
+                              src={imageErrors[item.id || `yt-${index}`]
+                                ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`
+                                : `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                              alt={item.title}
+                              className="absolute w-full h-[135%] -top-[17.5%] left-0 object-cover group-hover:scale-110 transition-transform duration-500"
+                              loading="lazy"
+                              onError={() => handleImageError(item.id || `yt-${index}`)}
+                            />
+                            {/* YouTube hover overlay */}
+                            <div className="absolute inset-0 bg-black/20 group-hover:opacity-0 transition-opacity duration-500 z-10 pointer-events-none" />
+                          </>
+                        ) : null;
                       } else if (isGoogleDrive(mediaUrl)) {
-                        return (!imageErrors[item.id || index] && getGoogleDriveThumbnail(mediaUrl)) ? (
-                          <img
-                            src={getGoogleDriveThumbnail(mediaUrl) || ''}
-                            alt={item.title}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            loading="lazy"
-                            onError={() => handleImageError(item.id || index)}
-                          />
+                        // For images: use lh3 direct link. For videos: use thumbnail API.
+                        const fileIdMatch = mediaUrl.match(/\/d\/([a-zA-Z0-9-_]+)/) || mediaUrl.match(/id=([a-zA-Z0-9-_]+)/);
+                        const fileId = fileIdMatch?.[1];
+                        const driveThumbUrl = fileId
+                          ? (item.type === 'image'
+                            ? `https://lh3.googleusercontent.com/d/${fileId}`
+                            : `https://lh3.googleusercontent.com/d/${fileId}=w600`)
+                          : null;
+
+                        return (!imageErrors[item.id || index] && driveThumbUrl) ? (
+                          <>
+                            <img
+                              src={driveThumbUrl}
+                              alt={item.title}
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              loading="lazy"
+                              onError={() => handleImageError(item.id || index)}
+                            />
+                            {/* Drive video hover overlay */}
+                            {item.type === 'video' && (
+                              <div className="absolute inset-0 bg-black/20 group-hover:opacity-0 transition-opacity duration-500 z-10 pointer-events-none" />
+                            )}
+                          </>
                         ) : (
                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#02150a] to-[#040806] p-4 text-center overflow-hidden">
                             <div className="absolute inset-0 bg-[#0f9d58]/5 rounded-full blur-3xl animate-pulse" />
@@ -346,50 +459,32 @@ export function Gallery() {
                           </div>
                         );
                       } else if (isTikTok(mediaUrl)) {
-                        return (!imageErrors[item.id || index] && tiktokThumbnails[item.id || index]) ? (
-                          <img
-                            src={tiktokThumbnails[item.id || index]}
-                            alt={item.title}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            loading="lazy"
-                            onError={() => handleImageError(item.id || index)}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#051c24] to-[#1a0510] p-4 text-center overflow-hidden">
-                            <div className="absolute top-1/4 -left-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl animate-pulse" />
-                            <div className="absolute bottom-1/4 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
-                            
-                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_20px_rgba(244,63,94,0.15)] group-hover:scale-110 transition-transform duration-300">
-                              <svg className="w-9 h-9 text-white filter drop-shadow-[2px_0_0_#00f2fe] drop-shadow-[-2px_0_0_#fe0979]" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.09-1.51-.71-.53-1.3-1.22-1.74-2v7.92c0 2.02-.6 4.12-2.02 5.56-1.5 1.56-3.83 2.25-5.96 1.88-2.1-.34-4.01-1.78-4.89-3.73-.97-2.11-.75-4.75.61-6.65 1.34-1.9 3.73-2.92 6.06-2.58v4.13c-1.24-.26-2.61.12-3.46 1.07-.81.89-1.01 2.27-.47 3.39.52 1.09 1.75 1.83 2.95 1.71 1.2-.08 2.24-1.02 2.45-2.21.07-.46.06-.93.06-1.39V.02z"/>
-                              </svg>
-                            </div>
-                            <span className="text-white font-extrabold text-sm tracking-wide z-10">VIDEO TIKTOK</span>
-                            <span className="text-cyan-400 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
-                          </div>
+                        const thumb = tiktokThumbnails[item.id || `item-${index}`] || getSuggestedThumbnail(item.title);
+                        return (
+                          <>
+                            <img
+                              src={thumb}
+                              alt={item.title}
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              loading="lazy"
+                            />
+                            {/* Clean masking hover overlay */}
+                            <div className="absolute inset-0 bg-black/20 group-hover:opacity-0 transition-opacity duration-500 z-10 pointer-events-none" />
+                          </>
                         );
                       } else if (isInstagram(mediaUrl)) {
-                        return (!imageErrors[item.id || index] && getInstagramThumbnail(mediaUrl)) ? (
-                          <img
-                            src={getInstagramThumbnail(mediaUrl) || ''}
-                            alt={item.title}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            loading="lazy"
-                            onError={() => handleImageError(item.id || index)}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] p-4 text-center overflow-hidden">
-                            <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
-                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] group-hover:scale-110 transition-transform duration-300">
-                              <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                              </svg>
-                            </div>
-                            <span className="text-white font-extrabold text-sm tracking-wide z-10">INSTAGRAM REEL</span>
-                            <span className="text-white/90 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MELIHAT</span>
-                          </div>
+                        const thumb = getInstagramThumbnail(mediaUrl) || getSuggestedThumbnail(item.title);
+                        return (
+                          <>
+                            <img
+                              src={thumb}
+                              alt={item.title}
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              loading="lazy"
+                            />
+                            {/* Clean masking hover overlay */}
+                            <div className="absolute inset-0 bg-black/20 group-hover:opacity-0 transition-opacity duration-500 z-10 pointer-events-none" />
+                          </>
                         );
                       } else if (isFacebook(mediaUrl)) {
                         return (
@@ -438,36 +533,46 @@ export function Gallery() {
                     {/* Dark gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 group-hover:via-black/50 transition-all duration-300" />
 
-                    {/* Play icon badge for videos (Top-left) */}
-                    {(item.type === 'video' || isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) && (
-                      <div className="absolute top-4 left-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
-                        <Play className="w-4 h-4 text-white fill-white" />
-                      </div>
-                    )}
+                     {/* Video icon badge for videos (Top-right) */}
+                     {(item.type === 'video' || isYouTube(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url) || (isGoogleDrive(item.url) && item.type === 'video')) && (
+                       <div className="absolute top-4 right-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
+                         <VideoIcon className="w-4 h-4 text-white" />
+                       </div>
+                     )}
+ 
+                     {/* Image icon badge for images (Top-right) */}
+                     {item.type === 'image' && (
+                       <div className="absolute top-4 right-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
+                         <ImageIcon className="w-4 h-4 text-white" />
+                       </div>
+                     )}
+ 
+                     {/* Hover instructions for video */}
+                     {item.type === 'video' && item.url && !isYouTube(item.url) && !isGoogleDrive(item.url) && !isTikTok(item.url) && !isInstagram(item.url) && !isFacebook(item.url) && (
+                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                         <span className="px-3 py-1.5 rounded-full bg-cyan-950/80 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium">
+                           Arahkan kursor untuk memutar video
+                         </span>
+                       </div>
+                     )}
+ 
+                     {/* Hover instructions for social media video */}
+                     {((isYouTube(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url) || (isGoogleDrive(item.url) && item.type === 'video'))) && (
+                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                         <span className="px-3 py-1.5 rounded-full bg-cyan-950/85 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium group-hover:scale-105 transition-transform duration-300">
+                           Klik untuk putar video
+                         </span>
+                       </div>
+                     )}
 
-                    {/* Image icon badge for images (Top-right) */}
-                    {item.type === 'image' && !isYouTube(item.url) && !isInstagram(item.url) && (
-                      <div className="absolute top-4 right-4 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-cyan-500/30 z-20">
-                        <ImageIcon className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-
-                    {/* Hover instructions for video */}
-                    {item.type === 'video' && item.url && !isYouTube(item.url) && !isGoogleDrive(item.url) && !isTikTok(item.url) && !isInstagram(item.url) && !isFacebook(item.url) && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity duration-300 z-10">
-                        <span className="px-3 py-1.5 rounded-full bg-cyan-950/80 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium">
-                          Arahkan kursor untuk memutar video
-                        </span>
-                      </div>
-                    )}
-
-                    {(isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                        <span className="px-3 py-1.5 rounded-full bg-cyan-950/85 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium group-hover:scale-105 transition-transform duration-300">
-                          Klik untuk putar video
-                        </span>
-                      </div>
-                    )}
+                     {/* Hover instructions for image */}
+                     {item.type === 'image' && (
+                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                         <span className="px-3 py-1.5 rounded-full bg-cyan-950/85 backdrop-blur-sm border border-cyan-500/30 text-xs text-cyan-300 font-medium scale-95 group-hover:scale-100 transition-transform duration-300">
+                           Klik untuk melihat foto
+                         </span>
+                       </div>
+                     )}
 
                     {/* Info section (Always visible) */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
@@ -490,7 +595,7 @@ export function Gallery() {
                         </motion.button>
 
                         <span className="text-cyan-300/40 text-xs uppercase tracking-wider font-semibold">
-                          {(isYouTube(item.url) || isGoogleDrive(item.url) || isTikTok(item.url) || isInstagram(item.url) || isFacebook(item.url)) ? 'Video Medsos' : item.type === 'video' ? 'Video' : 'Foto'}
+                          {item.type === 'video' ? 'Video' : 'Foto'}
                         </span>
                       </div>
                     </div>
@@ -560,20 +665,10 @@ export function Gallery() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 pt-24 md:pt-28 pb-10"
             onClick={() => setSelectedItem(null)}
           >
-            {/* Viewport Fixed Close Button - Immune to overlap and 100% clickproof */}
-            <motion.button 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              onClick={() => setSelectedItem(null)}
-              className="fixed top-6 right-6 md:top-8 md:right-8 p-3 rounded-full bg-black/60 backdrop-blur-md border border-cyan-500/30 text-white hover:bg-red-500 hover:text-red-400 transition-all z-[120] shadow-[0_0_20px_rgba(6,182,212,0.2)]"
-              title="Tutup (Esc)"
-            >
-              <X className="w-6 h-6" />
-            </motion.button>
+            {/* Detail Modal Container */}
 
             <motion.div
               initial={{ scale: 0.95, y: 20 }}
@@ -582,22 +677,22 @@ export function Gallery() {
               className={`relative ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
                   ? 'max-w-[390px] w-full' 
-                  : selectedItem.type === 'image'
-                  ? 'max-w-full sm:max-w-[90vw] md:max-w-2xl lg:max-w-3xl w-auto min-w-[300px] sm:min-w-[450px]'
+                  : selectedItem.type === 'image' && !modalImageError
+                  ? 'w-fit max-w-[95vw] lg:max-w-6xl min-w-[300px]'
                   : 'max-w-4xl w-full'
-              } max-h-[90vh] flex flex-col bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
+              } max-h-[75vh] flex flex-col bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
               onClick={e => e.stopPropagation()}
             >
               {/* Media Display Container */}
               <div className={`relative ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
                   ? 'aspect-[9/16] max-h-[55vh] md:max-h-[62vh] w-full' 
-                  : selectedItem.type === 'image'
-                  ? 'max-h-[70vh] w-auto flex items-center justify-center bg-black/40'
+                  : selectedItem.type === 'image' && !modalImageError
+                  ? 'w-full'
                   : 'aspect-video w-full'
               } bg-black flex items-center justify-center overflow-hidden`}>
                 {selectedItem.url ? (
-                  ((isYouTube(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url) || isGoogleDrive(selectedItem.url)) && selectedItem.type !== 'image') ? (
+                  (((isYouTube(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url) || isGoogleDrive(selectedItem.url)) && selectedItem.type !== 'image') || (isGoogleDrive(selectedItem.url) && modalImageError)) ? (
                     <iframe
                       src={getEmbedUrl(selectedItem.url)}
                       title={selectedItem.title}
@@ -622,13 +717,17 @@ export function Gallery() {
                         autoPlay
                       />
                     )
-                  ) : (
-                    <img
-                      src={isGoogleDrive(selectedItem.url) ? getGoogleDriveImageUrl(selectedItem.url) : selectedItem.url}
-                      alt={selectedItem.title}
-                      className="max-h-[70vh] w-auto object-contain"
-                    />
-                  )
+                  ) : (() => {
+                    const { mediaUrl } = parseGalleryUrl(selectedItem.url, selectedItem.thumbnail_url);
+                    return (
+                      <img
+                        src={isGoogleDrive(mediaUrl) ? getGoogleDriveImageUrl(mediaUrl) : mediaUrl}
+                        alt={selectedItem.title}
+                        className="max-h-[50vh] md:max-h-[55vh] lg:max-h-[60vh] w-auto max-w-full object-contain block"
+                        onError={() => setModalImageError(true)}
+                      />
+                    );
+                  })()
                 ) : (
                   <div className={`w-full h-full bg-gradient-to-br ${selectedItem.gradient} flex items-center justify-center opacity-70`}>
                     <span className="text-white font-bold text-xl">{selectedItem.title}</span>
