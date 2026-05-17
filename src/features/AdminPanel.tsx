@@ -38,6 +38,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [activityForm, setActivityForm] = useState(emptyActivity);
   const [galleryForm, setGalleryForm] = useState(emptyGalleryItem);
   const [galleryFile, setGalleryFile] = useState<File | null>(null);
+  const [galleryThumbnail, setGalleryThumbnail] = useState('');
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
@@ -197,6 +198,11 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
       return toast.error('Harap pilih file untuk di-upload atau masukkan Link URL!');
     }
 
+    // Append optional thumbnail URL if present
+    if (galleryThumbnail.trim()) {
+      finalUrl = `${finalUrl.trim()}||thumb||${galleryThumbnail.trim()}`;
+    }
+
     const payload = {
       title: galleryForm.title,
       type: galleryForm.type,
@@ -217,6 +223,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
 
     setGalleryForm(emptyGalleryItem);
     setGalleryFile(null);
+    setGalleryThumbnail('');
     const fileInput = document.getElementById('gallery-file-input') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
 
@@ -604,6 +611,12 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                             <label className={labelClass}>Link URL Langsung *</label>
                             <input className={inputClass} placeholder="cth: https://images.unsplash.com/... atau link mp4" value={galleryForm.url} onChange={e => setGalleryForm({ ...galleryForm, url: e.target.value })} />
                             <p className="text-xs text-cyan-300/40 mt-1">Gunakan ini jika ingin menempelkan link gambar/video langsung dari internet.</p>
+                            
+                            <div className="mt-3">
+                              <label className={labelClass}>Link Gambar Thumbnail (Opsional)</label>
+                              <input className={inputClass} placeholder="cth: https://images.unsplash.com/... atau upload di tempat lain" value={galleryThumbnail} onChange={e => setGalleryThumbnail(e.target.value)} />
+                              <p className="text-xs text-cyan-300/40 mt-1">Sangat cocok untuk video TikTok, Instagram, atau Google Drive agar langsung memiliki cover thumbnail yang indah.</p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -649,13 +662,20 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                           <motion.div key={g.id} layout
                             className="flex items-center justify-between p-4 rounded-2xl bg-white/3 border border-white/5 hover:border-cyan-500/20 transition-all">
                             <div className="flex items-center gap-3">
-                              {g.url ? (
-                                g.type === 'video' ? (
-                                  <video src={g.url} className="w-12 h-12 rounded-xl object-cover bg-black/40" muted />
+                              {g.url ? (() => {
+                                const parts = g.url.split('||thumb||');
+                                const mediaUrl = parts[0];
+                                const thumbUrl = parts[1] || '';
+                                return g.type === 'video' ? (
+                                  thumbUrl ? (
+                                    <img src={thumbUrl} className="w-12 h-12 rounded-xl object-cover" />
+                                  ) : (
+                                    <video src={mediaUrl} className="w-12 h-12 rounded-xl object-cover bg-black/40" muted />
+                                  )
                                 ) : (
-                                  <img src={g.url} className="w-12 h-12 rounded-xl object-cover" />
-                                )
-                              ) : (
+                                  <img src={mediaUrl} className="w-12 h-12 rounded-xl object-cover" />
+                                );
+                              })() : (
                                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${g.gradient || 'from-cyan-500 to-teal-500'} opacity-40`} />
                               )}
                               <div>
@@ -666,7 +686,15 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                             <div className="flex gap-2">
                               <button onClick={() => {
                                 setEditingGalleryId(g.id);
-                                setGalleryForm({ title: g.title, type: g.type, gradient: g.gradient, url: g.url, likes: g.likes });
+                                let mediaUrl = g.url || '';
+                                let thumbUrl = '';
+                                if (mediaUrl.includes('||thumb||')) {
+                                  const parts = mediaUrl.split('||thumb||');
+                                  mediaUrl = parts[0];
+                                  thumbUrl = parts[1];
+                                }
+                                setGalleryForm({ title: g.title, type: g.type, gradient: g.gradient, url: mediaUrl, likes: g.likes });
+                                setGalleryThumbnail(thumbUrl);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                                 className="p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 transition-all">

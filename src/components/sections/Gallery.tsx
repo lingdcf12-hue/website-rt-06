@@ -67,6 +67,8 @@ export function Gallery() {
   const [galleryItems, setGalleryItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [tiktokThumbnails, setTiktokThumbnails] = useState<Record<string, string>>({});
   
   const ITEMS_PER_PAGE = 6;
 
@@ -121,6 +123,19 @@ export function Gallery() {
   const isInstagram = (url: string) => url && url.includes('instagram.com');
   const isFacebook = (url: string) => url && url.includes('facebook.com');
 
+  const handleImageError = (key: string) => {
+    setImageErrors(prev => ({ ...prev, [key]: true }));
+  };
+
+  const parseGalleryUrl = (url: string) => {
+    if (!url) return { mediaUrl: '', thumbnailUrl: '' };
+    if (url.includes('||thumb||')) {
+      const parts = url.split('||thumb||');
+      return { mediaUrl: parts[0], thumbnailUrl: parts[1] };
+    }
+    return { mediaUrl: url, thumbnailUrl: '' };
+  };
+
   const getYouTubeThumbnail = (url: string) => {
     if (!url) return null;
     let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -137,50 +152,84 @@ export function Gallery() {
     return null;
   };
 
+  const getGoogleDriveThumbnail = (url: string) => {
+    if (!url) return null;
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w600`;
+    }
+    return null;
+  };
+
+  const getInstagramThumbnail = (url: string) => {
+    if (!url) return null;
+    const match = url.match(/\/(p|reel|tv)\/([a-zA-Z0-9-_]+)/);
+    if (match && match[2]) {
+      return `https://www.instagram.com/p/${match[2]}/media/?size=l`;
+    }
+    return null;
+  };
+
+  const fetchTiktokThumbnail = async (id: string, url: string) => {
+    try {
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const parsed = JSON.parse(data.contents);
+        if (parsed.thumbnail_url) {
+          setTiktokThumbnails(prev => ({ ...prev, [id]: parsed.thumbnail_url }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch TikTok thumbnail:', err);
+    }
+  };
+
   const getEmbedUrl = (url: string) => {
     if (!url) return '';
+    const { mediaUrl } = parseGalleryUrl(url);
     
-    if (isYouTube(url)) {
+    if (isYouTube(mediaUrl)) {
       let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-      let match = url.match(regExp);
+      let match = mediaUrl.match(regExp);
       if (match && match[2].length === 11) {
         return `https://www.youtube.com/embed/${match[2]}?autoplay=1`;
       }
-      if (url.includes('/shorts/')) {
-        const shortsId = url.split('/shorts/')[1]?.split('?')[0];
+      if (mediaUrl.includes('/shorts/')) {
+        const shortsId = mediaUrl.split('/shorts/')[1]?.split('?')[0];
         if (shortsId) {
           return `https://www.youtube.com/embed/${shortsId}?autoplay=1`;
         }
       }
     }
     
-    if (isGoogleDrive(url)) {
-      const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (isGoogleDrive(mediaUrl)) {
+      const fileIdMatch = mediaUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
       if (fileIdMatch && fileIdMatch[1]) {
         return `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
       }
     }
     
-    if (isTikTok(url)) {
-      const match = url.match(/\/video\/([0-9]+)/);
+    if (isTikTok(mediaUrl)) {
+      const match = mediaUrl.match(/\/video\/([0-9]+)/);
       if (match && match[1]) {
         return `https://www.tiktok.com/embed/v2/${match[1]}`;
       }
     }
     
-    if (isInstagram(url)) {
-      let cleanedUrl = url.split('?')[0];
+    if (isInstagram(mediaUrl)) {
+      let cleanedUrl = mediaUrl.split('?')[0];
       if (cleanedUrl.endsWith('/')) {
         cleanedUrl = cleanedUrl.slice(0, -1);
       }
       return `${cleanedUrl}/embed`;
     }
     
-    if (isFacebook(url)) {
-      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0`;
+    if (isFacebook(mediaUrl)) {
+      return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(mediaUrl)}&show_text=0`;
     }
     
-    return url;
+    return mediaUrl;
   };
 
   const totalPages = Math.ceil(galleryItems.length / ITEMS_PER_PAGE);
@@ -188,6 +237,15 @@ export function Gallery() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  useEffect(() => {
+    currentItems.forEach((item, idx) => {
+      const id = item.id || `temp-${idx}`;
+      if (item.url && isTikTok(item.url) && !tiktokThumbnails[id] && !imageErrors[id]) {
+        fetchTiktokThumbnail(id, item.url);
+      }
+    });
+  }, [galleryItems, currentPage]);
 
   return (
     <section id="gallery" className="relative py-20 px-4">
@@ -232,75 +290,124 @@ export function Gallery() {
                     className="relative aspect-[4/3] rounded-3xl bg-gradient-to-br from-cyan-900/30 to-teal-900/20 backdrop-blur-xl border border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] overflow-hidden group cursor-pointer"
                   >
                     {/* Media render (Image or Video) */}
-                    {item.url ? (
-                      isYouTube(item.url) ? (
+                    {item.url ? (() => {
+                      const { mediaUrl, thumbnailUrl } = parseGalleryUrl(item.url);
+                      
+                      // Prioritize custom thumbnail if present and hasn't failed to load
+                      if (thumbnailUrl && !imageErrors[item.id || index]) {
+                        return (
+                          <img
+                            src={thumbnailUrl}
+                            alt={item.title}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                            onError={() => handleImageError(item.id || index)}
+                          />
+                        );
+                      }
+
+                      if (isYouTube(mediaUrl)) {
+                        return (
+                          <img
+                            src={getYouTubeThumbnail(mediaUrl) || ''}
+                            alt={item.title}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        );
+                      } else if (isGoogleDrive(mediaUrl)) {
+                        return (!imageErrors[item.id || index] && getGoogleDriveThumbnail(mediaUrl)) ? (
+                          <img
+                            src={getGoogleDriveThumbnail(mediaUrl) || ''}
+                            alt={item.title}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                            onError={() => handleImageError(item.id || index)}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#02150a] to-[#040806] p-4 text-center overflow-hidden">
+                            <div className="absolute inset-0 bg-[#0f9d58]/5 rounded-full blur-3xl animate-pulse" />
+                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-[#0f9d58]/10 backdrop-blur-md rounded-2xl border border-[#0f9d58]/30 shadow-[0_0_20px_rgba(15,157,88,0.2)] group-hover:scale-110 transition-transform duration-300">
+                              <svg className="w-9 h-9 text-[#0f9d58]" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46.18 14.25 0 14 0h-4c-.25 0-.46.18-.5.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                              </svg>
+                            </div>
+                            <span className="text-white font-extrabold text-sm tracking-wide z-10">GOOGLE DRIVE</span>
+                            <span className="text-[#0f9d58] text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
+                          </div>
+                        );
+                      } else if (isTikTok(mediaUrl)) {
+                        return (!imageErrors[item.id || index] && tiktokThumbnails[item.id || index]) ? (
+                          <img
+                            src={tiktokThumbnails[item.id || index]}
+                            alt={item.title}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                            onError={() => handleImageError(item.id || index)}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#051c24] to-[#1a0510] p-4 text-center overflow-hidden">
+                            <div className="absolute top-1/4 -left-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl animate-pulse" />
+                            <div className="absolute bottom-1/4 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+                            
+                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_20px_rgba(244,63,94,0.15)] group-hover:scale-110 transition-transform duration-300">
+                              <svg className="w-9 h-9 text-white filter drop-shadow-[2px_0_0_#00f2fe] drop-shadow-[-2px_0_0_#fe0979]" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.09-1.51-.71-.53-1.3-1.22-1.74-2v7.92c0 2.02-.6 4.12-2.02 5.56-1.5 1.56-3.83 2.25-5.96 1.88-2.1-.34-4.01-1.78-4.89-3.73-.97-2.11-.75-4.75.61-6.65 1.34-1.9 3.73-2.92 6.06-2.58v4.13c-1.24-.26-2.61.12-3.46 1.07-.81.89-1.01 2.27-.47 3.39.52 1.09 1.75 1.83 2.95 1.71 1.2-.08 2.24-1.02 2.45-2.21.07-.46.06-.93.06-1.39V.02z"/>
+                              </svg>
+                            </div>
+                            <span className="text-white font-extrabold text-sm tracking-wide z-10">VIDEO TIKTOK</span>
+                            <span className="text-cyan-400 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
+                          </div>
+                        );
+                      } else if (isInstagram(mediaUrl)) {
+                        return (!imageErrors[item.id || index] && getInstagramThumbnail(mediaUrl)) ? (
+                          <img
+                            src={getInstagramThumbnail(mediaUrl) || ''}
+                            alt={item.title}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="lazy"
+                            onError={() => handleImageError(item.id || index)}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] p-4 text-center overflow-hidden">
+                            <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
+                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] group-hover:scale-110 transition-transform duration-300">
+                              <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                              </svg>
+                            </div>
+                            <span className="text-white font-extrabold text-sm tracking-wide z-10">INSTAGRAM REEL</span>
+                            <span className="text-white/90 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MELIHAT</span>
+                          </div>
+                        );
+                      } else if (isFacebook(mediaUrl)) {
+                        return (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0e1e38] to-[#0a1120] p-4 text-center overflow-hidden border-t border-blue-500/20">
+                            <div className="absolute inset-0 bg-[#1877f2]/5 rounded-full blur-3xl animate-pulse" />
+                            <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-[#1877f2]/10 backdrop-blur-md rounded-2xl border border-[#1877f2]/30 shadow-[0_0_20px_rgba(24,119,242,0.2)] group-hover:scale-110 transition-transform duration-300">
+                              <svg className="w-9 h-9 text-white fill-current" viewBox="0 0 24 24">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                              </svg>
+                            </div>
+                            <span className="text-white font-extrabold text-sm tracking-wide z-10">FACEBOOK VIDEO</span>
+                            <span className="text-blue-400 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
+                          </div>
+                        );
+                      }
+                      
+                      // Default / direct media URL image
+                      return (
                         <img
-                          src={getYouTubeThumbnail(item.url) || ''}
+                          src={mediaUrl}
                           alt={item.title}
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           loading="lazy"
+                          onError={() => handleImageError(item.id || index)}
                         />
-                      ) : isGoogleDrive(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-cyan-950/40 p-4 text-center">
-                          <Play className="w-10 h-10 text-cyan-400 mb-2 animate-pulse" />
-                          <span className="text-cyan-200 text-xs font-semibold">Video Google Drive</span>
-                        </div>
-                      ) : isTikTok(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#010101] via-[#051c24] to-[#1a0510] p-4 text-center overflow-hidden">
-                          <div className="absolute top-1/4 -left-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl animate-pulse" />
-                          <div className="absolute bottom-1/4 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
-                          
-                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_20px_rgba(244,63,94,0.15)] group-hover:scale-110 transition-transform duration-300">
-                            <svg className="w-9 h-9 text-white filter drop-shadow-[2px_0_0_#00f2fe] drop-shadow-[-2px_0_0_#fe0979]" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.09-1.51-.71-.53-1.3-1.22-1.74-2v7.92c0 2.02-.6 4.12-2.02 5.56-1.5 1.56-3.83 2.25-5.96 1.88-2.1-.34-4.01-1.78-4.89-3.73-.97-2.11-.75-4.75.61-6.65 1.34-1.9 3.73-2.92 6.06-2.58v4.13c-1.24-.26-2.61.12-3.46 1.07-.81.89-1.01 2.27-.47 3.39.52 1.09 1.75 1.83 2.95 1.71 1.2-.08 2.24-1.02 2.45-2.21.07-.46.06-.93.06-1.39V.02z"/>
-                            </svg>
-                          </div>
-                          <span className="text-white font-extrabold text-sm tracking-wide z-10">VIDEO TIKTOK</span>
-                          <span className="text-cyan-400 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
-                        </div>
-                      ) : isInstagram(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] p-4 text-center overflow-hidden">
-                          <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
-                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] group-hover:scale-110 transition-transform duration-300">
-                            <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                            </svg>
-                          </div>
-                          <span className="text-white font-extrabold text-sm tracking-wide z-10">INSTAGRAM REEL</span>
-                          <span className="text-white/90 text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MELIHAT</span>
-                        </div>
-                      ) : isFacebook(item.url) ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0e1e38] to-[#0a1120] p-4 text-center overflow-hidden border-t border-blue-500/20">
-                          <div className="absolute inset-0 bg-[#1877f2]/5 rounded-full blur-3xl animate-pulse" />
-                          <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-[#1877f2]/10 backdrop-blur-md rounded-2xl border border-[#1877f2]/30 shadow-[0_0_20px_rgba(24,119,242,0.2)] group-hover:scale-110 transition-transform duration-300">
-                            <svg className="w-9 h-9 text-white fill-current" viewBox="0 0 24 24">
-                              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                            </svg>
-                          </div>
-                          <span className="text-white font-extrabold text-sm tracking-wide z-10">FACEBOOK VIDEO</span>
-                          <span className="text-[#1877f2] text-xs mt-1 font-semibold tracking-wider animate-pulse z-10">KLIK UNTUK MEMUTAR</span>
-                        </div>
-                      ) : item.type === 'video' ? (
-                        <video
-                          src={item.url}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          muted
-                          loop
-                          playsInline
-                          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-                          onMouseLeave={(e) => e.currentTarget.pause()}
-                        />
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt={item.title}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          loading="lazy"
-                        />
-                      )
-                    ) : (
+                      );
+                    })() : (
                       /* Fallback Gradient */
                       <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-30`} />
                     )}
