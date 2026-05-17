@@ -161,6 +161,15 @@ export function Gallery() {
     return null;
   };
 
+  const getGoogleDriveImageUrl = (url: string) => {
+    if (!url) return '';
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w1600`;
+    }
+    return url;
+  };
+
   const getInstagramThumbnail = (url: string) => {
     if (!url) return null;
     const match = url.match(/\/(p|reel|tv)\/([a-zA-Z0-9-_]+)/);
@@ -570,21 +579,25 @@ export function Gallery() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className={`relative w-full ${
+              className={`relative ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
-                  ? 'max-w-[390px]' 
-                  : 'max-w-4xl'
+                  ? 'max-w-[390px] w-full' 
+                  : selectedItem.type === 'image'
+                  ? 'max-w-full sm:max-w-[90vw] md:max-w-2xl lg:max-w-3xl w-auto min-w-[300px] sm:min-w-[450px]'
+                  : 'max-w-4xl w-full'
               } max-h-[90vh] flex flex-col bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
               onClick={e => e.stopPropagation()}
             >
               {/* Media Display Container */}
               <div className={`relative ${
                 (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
-                  ? 'aspect-[9/16] max-h-[55vh] md:max-h-[62vh]' 
-                  : 'aspect-video'
-              } w-full bg-black flex items-center justify-center overflow-hidden`}>
+                  ? 'aspect-[9/16] max-h-[55vh] md:max-h-[62vh] w-full' 
+                  : selectedItem.type === 'image'
+                  ? 'max-h-[70vh] w-auto flex items-center justify-center bg-black/40'
+                  : 'aspect-video w-full'
+              } bg-black flex items-center justify-center overflow-hidden`}>
                 {selectedItem.url ? (
-                  (isYouTube(selectedItem.url) || isGoogleDrive(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url)) ? (
+                  ((isYouTube(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url) || isGoogleDrive(selectedItem.url)) && selectedItem.type !== 'image') ? (
                     <iframe
                       src={getEmbedUrl(selectedItem.url)}
                       title={selectedItem.title}
@@ -593,17 +606,27 @@ export function Gallery() {
                       allowFullScreen
                     />
                   ) : selectedItem.type === 'video' ? (
-                    <video
-                      src={selectedItem.url}
-                      className="w-full h-full object-contain"
-                      controls
-                      autoPlay
-                    />
+                    isGoogleDrive(selectedItem.url) ? (
+                      <iframe
+                        src={getEmbedUrl(selectedItem.url)}
+                        title={selectedItem.title}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={selectedItem.url}
+                        className="w-full h-full object-contain"
+                        controls
+                        autoPlay
+                      />
+                    )
                   ) : (
                     <img
-                      src={selectedItem.url}
+                      src={isGoogleDrive(selectedItem.url) ? getGoogleDriveImageUrl(selectedItem.url) : selectedItem.url}
                       alt={selectedItem.title}
-                      className="w-full h-full object-contain"
+                      className="max-h-[70vh] w-auto object-contain"
                     />
                   )
                 ) : (
