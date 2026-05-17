@@ -424,7 +424,11 @@ export function Gallery() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)]"
+              className={`relative w-full ${
+                (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
+                  ? 'max-w-[420px]' 
+                  : 'max-w-4xl'
+              } bg-gradient-to-br from-[#000d14] to-[#001a24] border border-cyan-500/30 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.3)] mx-auto`}
               onClick={e => e.stopPropagation()}
             >
               {/* Close Button */}
@@ -436,7 +440,11 @@ export function Gallery() {
               </button>
 
               {/* Media Display Container */}
-              <div className="relative aspect-video w-full bg-black flex items-center justify-center">
+              <div className={`relative ${
+                (isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || selectedItem.url?.includes('/shorts/')) 
+                  ? 'aspect-[9/16] max-h-[75vh]' 
+                  : 'aspect-video'
+              } w-full bg-black flex items-center justify-center`}>
                 {selectedItem.url ? (
                   (isYouTube(selectedItem.url) || isGoogleDrive(selectedItem.url) || isTikTok(selectedItem.url) || isInstagram(selectedItem.url) || isFacebook(selectedItem.url)) ? (
                     <iframe
