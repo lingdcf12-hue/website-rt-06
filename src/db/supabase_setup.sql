@@ -75,3 +75,23 @@ CREATE POLICY "Public read messages" ON messages FOR SELECT USING (true);
 CREATE POLICY "Public insert messages" ON messages FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public delete messages" ON messages FOR DELETE USING (true);
 
+
+-- =============================================
+-- TABEL: gallery (Galeri Kegiatan Warga)
+-- =============================================
+CREATE TABLE IF NOT EXISTS gallery (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  type TEXT NOT NULL DEFAULT 'image', -- 'image' atau 'video'
+  title TEXT NOT NULL,
+  likes INTEGER DEFAULT 0,
+  gradient TEXT DEFAULT 'from-cyan-500 to-teal-500',
+  url TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE gallery ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read gallery" ON gallery FOR SELECT USING (true);
+CREATE POLICY "Public write gallery" ON gallery FOR ALL USING (true);
+
+

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import {
   Plus, Trash2, X, Calendar, Bell, Megaphone,
-  Heart, Gift, Music, Book, Shield, LogOut, Loader2, Edit2, Check, Mail, MessageSquare
+  Heart, Gift, Music, Book, Shield, LogOut, Loader2, Edit2, Check, Mail, MessageSquare, Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,20 +23,26 @@ const ICON_MAP: Record<string, any> = { Bell, Megaphone, Heart, Gift, Music, Boo
 
 const emptySchedule = { title: '', date: '', time: '', location: '', attendees: 0, color: 'from-cyan-500 to-teal-500' };
 const emptyActivity = { title: '', description: '', badge: 'Info', icon_name: 'Bell', gradient: 'from-cyan-500 to-teal-500' };
+const emptyGalleryItem = { title: '', type: 'image', gradient: 'from-cyan-500 to-teal-500', url: '', likes: 0 };
 
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('adminAuth') === 'true');
   const [password, setPassword] = useState('');
-  const [tab, setTab] = useState<'schedules' | 'activities' | 'messages'>('schedules');
+  const [tab, setTab] = useState<'schedules' | 'activities' | 'gallery' | 'messages'>('schedules');
   const [schedules, setSchedules] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [gallery, setGallery] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [scheduleForm, setScheduleForm] = useState(emptySchedule);
   const [activityForm, setActivityForm] = useState(emptyActivity);
+  const [galleryForm, setGalleryForm] = useState(emptyGalleryItem);
+  const [galleryFile, setGalleryFile] = useState<File | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) fetchAll();
@@ -44,14 +50,16 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
 
   const fetchAll = async () => {
     setIsLoading(true);
-    const [s, a, m] = await Promise.all([
+    const [s, a, m, g] = await Promise.all([
       supabase.from('schedules').select('*').order('created_at', { ascending: false }),
       supabase.from('activities').select('*').order('created_at', { ascending: false }),
       supabase.from('messages').select('*').order('created_at', { ascending: false }),
+      supabase.from('gallery').select('*').order('created_at', { ascending: false }),
     ]);
     setSchedules(s.data || []);
     setActivities(a.data || []);
     setMessages(m.data || []);
+    setGallery(g.data || []);
     setIsLoading(false);
   };
 
@@ -92,10 +100,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   };
 
   const deleteSchedule = async (id: string, title: string) => {
-    // 1. Hapus semua pendaftar yang terkait dengan jadwal ini
     await supabase.from('registrations').delete().eq('activity_title', title);
-    
-    // 2. Hapus jadwal utamanya
     const { error } = await supabase.from('schedules').delete().eq('id', id);
     if (error) toast.error('Gagal hapus'); else { toast.success('Jadwal & Data Pendaftar dihapus'); fetchAll(); }
   };
@@ -137,6 +142,101 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ── GALLERY CRUD ──
+  const handleFileUpload = async (file: File) => {
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (error) {
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          throw new Error("Bucket 'gallery' belum dibuat di Supabase Storage kamu. Harap buat bucket bernama 'gallery' terlebih dahulu di dashboard Supabase dan set aksesnya ke Publik.");
+        }
+        throw error;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('gallery')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast.error(err.message || "Gagal meng-upload file. Coba gunakan metode Input Link URL.");
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const saveGalleryItem = async () => {
+    if (!galleryForm.title) {
+      return toast.error('Judul galeri wajib diisi!');
+    }
+    
+    setSaving(true);
+    let finalUrl = galleryForm.url;
+
+    if (galleryFile) {
+      const uploadedUrl = await handleFileUpload(galleryFile);
+      if (!uploadedUrl) {
+        setSaving(false);
+        return; 
+      }
+      finalUrl = uploadedUrl;
+    }
+
+    if (!finalUrl) {
+      setSaving(false);
+      return toast.error('Harap pilih file untuk di-upload atau masukkan Link URL!');
+    }
+
+    const payload = {
+      title: galleryForm.title,
+      type: galleryForm.type,
+      gradient: galleryForm.gradient,
+      url: finalUrl,
+      likes: galleryForm.likes || 0
+    };
+
+    if (editingGalleryId) {
+      const { error } = await supabase.from('gallery').update(payload).eq('id', editingGalleryId);
+      if (error) toast.error('Gagal update galeri');
+      else { toast.success('Galeri diupdate!'); setEditingGalleryId(null); }
+    } else {
+      const { error } = await supabase.from('gallery').insert(payload);
+      if (error) toast.error('Gagal tambah galeri');
+      else toast.success('Galeri ditambahkan!');
+    }
+
+    setGalleryForm(emptyGalleryItem);
+    setGalleryFile(null);
+    const fileInput = document.getElementById('gallery-file-input') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+
+    setSaving(false);
+    fetchAll();
+  };
+
+  const deleteGalleryItem = async (id: string, url: string) => {
+    if (url && url.includes('/storage/v1/object/public/gallery/')) {
+      const filePath = url.split('/storage/v1/object/public/gallery/').pop();
+      if (filePath) {
+        await supabase.storage.from('gallery').remove([filePath]);
+      }
+    }
+
+    const { error } = await supabase.from('gallery').delete().eq('id', id);
+    if (error) toast.error('Gagal menghapus'); 
+    else { toast.success('Galeri dihapus'); fetchAll(); }
+  };
+
   // ── MESSAGES ──
   const deleteMessage = async (id: string) => {
     const { error } = await supabase.from('messages').delete().eq('id', id);
@@ -144,7 +244,6 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     else { toast.success('Pesan dihapus'); fetchAll(); }
   };
 
-  // ── INPUT STYLE ──
   const inputClass = "w-full px-4 py-3 rounded-2xl bg-white/5 border border-cyan-500/20 text-white placeholder-cyan-300/30 focus:outline-none focus:border-cyan-500/60 focus:bg-white/10 transition-all";
   const labelClass = "block text-cyan-300/70 text-sm mb-1 font-medium";
 
@@ -222,6 +321,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                 {[
                   { key: 'schedules', label: 'Jadwal Aktivitas', icon: Calendar },
                   { key: 'activities', label: 'Kegiatan & Pengumuman', icon: Bell },
+                  { key: 'gallery', label: 'Galeri Warga', icon: ImageIcon },
                   { key: 'messages', label: 'Pesan Masuk', icon: Mail },
                 ].map(({ key, label, icon: Icon }) => (
                   <button key={key} onClick={() => setTab(key as any)}
@@ -427,6 +527,158 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                             </motion.div>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── GALLERY TAB ── */}
+              {tab === 'gallery' && (
+                <div className="space-y-8">
+                  {/* Form */}
+                  <div className="p-6 rounded-3xl bg-white/3 border border-cyan-500/10">
+                    <h3 className="text-white font-semibold mb-5 flex items-center gap-2">
+                      {editingGalleryId ? <><Edit2 className="w-4 h-4 text-cyan-400"/>Edit Galeri</> : <><Plus className="w-4 h-4 text-cyan-400"/>Tambah Foto / Video Baru</>}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className={labelClass}>Judul Dokumentasi *</label>
+                        <input className={inputClass} placeholder="cth: Senam Pagi Bersama Warga" value={galleryForm.title} onChange={e => setGalleryForm({ ...galleryForm, title: e.target.value })} />
+                      </div>
+                      
+                      <div>
+                        <label className={labelClass}>Tipe Media *</label>
+                        <select 
+                          className={inputClass} 
+                          value={galleryForm.type} 
+                          onChange={e => setGalleryForm({ ...galleryForm, type: e.target.value })}
+                        >
+                          <option value="image">Foto (Image)</option>
+                          <option value="video">Video</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={labelClass}>Jumlah Likes Awal</label>
+                        <input type="number" min="0" className={inputClass} placeholder="0" value={galleryForm.likes} onChange={e => setGalleryForm({ ...galleryForm, likes: Number(e.target.value) })} />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className="p-4 rounded-2xl bg-white/5 border border-cyan-500/10 space-y-4">
+                          <div className="flex gap-4">
+                            <span className="text-cyan-300 font-semibold text-sm">Metode Media:</span>
+                            <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+                              <input type="radio" name="media-method" defaultChecked onChange={() => {
+                                const elUrl = document.getElementById('media-url-container');
+                                const elFile = document.getElementById('media-file-container');
+                                if (elUrl) elUrl.style.display = 'none';
+                                if (elFile) elFile.style.display = 'block';
+                              }} />
+                              Upload File
+                            </label>
+                            <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+                              <input type="radio" name="media-method" onChange={() => {
+                                const elUrl = document.getElementById('media-url-container');
+                                const elFile = document.getElementById('media-file-container');
+                                if (elUrl) elUrl.style.display = 'block';
+                                if (elFile) elFile.style.display = 'none';
+                              }} />
+                              Link URL Langsung
+                            </label>
+                          </div>
+
+                          <div id="media-file-container">
+                            <label className={labelClass}>Pilih File (Foto / Video) *</label>
+                            <input 
+                              id="gallery-file-input"
+                              type="file" 
+                              accept={galleryForm.type === 'video' ? 'video/*' : 'image/*'} 
+                              className={inputClass + ' file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-white hover:file:bg-cyan-600'} 
+                              onChange={e => setGalleryFile(e.target.files?.[0] || null)} 
+                            />
+                            <p className="text-xs text-cyan-300/40 mt-1">Format didukung: jpg, png, mp4, webm, dll. Maksimal 50MB (Batas Supabase).</p>
+                          </div>
+
+                          <div id="media-url-container" style={{ display: 'none' }}>
+                            <label className={labelClass}>Link URL Langsung *</label>
+                            <input className={inputClass} placeholder="cth: https://images.unsplash.com/... atau link mp4" value={galleryForm.url} onChange={e => setGalleryForm({ ...galleryForm, url: e.target.value })} />
+                            <p className="text-xs text-cyan-300/40 mt-1">Gunakan ini jika ingin menempelkan link gambar/video langsung dari internet.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className={labelClass}>Warna Efek Glow Kartu</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {GRADIENT_OPTIONS.map(g => (
+                            <button key={g.value} onClick={() => setGalleryForm({ ...galleryForm, gradient: g.value })}
+                              className={`px-3 py-1.5 rounded-xl text-xs border transition-all bg-gradient-to-r ${g.value} ${galleryForm.gradient === g.value ? 'ring-2 ring-white scale-105' : 'opacity-60 hover:opacity-100'}`}>
+                              {g.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-5">
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={saveGalleryItem} disabled={saving || isUploading}
+                        className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50">
+                        {saving || isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : editingGalleryId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {isUploading ? 'Mengupload File...' : saving ? 'Menyimpan...' : editingGalleryId ? 'Simpan Perubahan' : 'Tambahkan'}
+                      </motion.button>
+                      {editingGalleryId && (
+                        <button onClick={() => { setEditingGalleryId(null); setGalleryForm(emptyGalleryItem); setGalleryFile(null); }}
+                          className="px-4 py-3 rounded-2xl bg-white/10 text-cyan-300 hover:bg-white/20 transition-all text-sm">
+                          Batal
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* List */}
+                  <div>
+                    <h3 className="text-white font-semibold mb-4">Daftar Galeri ({gallery.length})</h3>
+                    {isLoading ? (
+                      <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-cyan-500" /></div>
+                    ) : gallery.length === 0 ? (
+                      <div className="text-center py-10 text-cyan-300/40">Belum ada item galeri di database (menampilkan default fallback di halaman utama)</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {gallery.map(g => (
+                          <motion.div key={g.id} layout
+                            className="flex items-center justify-between p-4 rounded-2xl bg-white/3 border border-white/5 hover:border-cyan-500/20 transition-all">
+                            <div className="flex items-center gap-3">
+                              {g.url ? (
+                                g.type === 'video' ? (
+                                  <video src={g.url} className="w-12 h-12 rounded-xl object-cover bg-black/40" muted />
+                                ) : (
+                                  <img src={g.url} className="w-12 h-12 rounded-xl object-cover" />
+                                )
+                              ) : (
+                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${g.gradient || 'from-cyan-500 to-teal-500'} opacity-40`} />
+                              )}
+                              <div>
+                                <p className="text-white font-medium">{g.title}</p>
+                                <p className="text-cyan-300/50 text-xs uppercase">{g.type} · {g.likes} likes · {g.url ? 'URL' : 'Gradient Only'}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => {
+                                setEditingGalleryId(g.id);
+                                setGalleryForm({ title: g.title, type: g.type, gradient: g.gradient, url: g.url, likes: g.likes });
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                                className="p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 transition-all">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => deleteGalleryItem(g.id, g.url)}
+                                className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))}
                       </div>
                     )}
                   </div>
