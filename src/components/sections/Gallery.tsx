@@ -238,7 +238,7 @@ export function Gallery() {
 
   const fetchTiktokThumbnail = async (id: string, url: string) => {
     try {
-      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
+      const response = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent('https://www.tiktok.com/oembed?url=' + url)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.thumbnail_url) {
