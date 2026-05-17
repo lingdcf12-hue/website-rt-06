@@ -397,7 +397,21 @@ export function Gallery() {
                         );
                       }
                       
-                      // Default / direct media URL image
+                      // Default / direct media URL image or video
+                      if (item.type === 'video') {
+                        return (
+                          <video
+                            src={mediaUrl}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            muted
+                            loop
+                            playsInline
+                            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                            onMouseLeave={(e) => e.currentTarget.pause()}
+                          />
+                        );
+                      }
+
                       return (
                         <img
                           src={mediaUrl}
