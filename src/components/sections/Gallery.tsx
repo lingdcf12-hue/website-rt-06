@@ -320,7 +320,7 @@ export function Gallery({ onLoginRequired }: { onLoginRequired?: () => void }) {
         </motion.div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-cyan-400">
+          <div className="flex flex-col items-center justify-center py-20" style={{ color: theme.primary }}>
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
             <p className="text-lg font-medium">Memuat Galeri...</p>
           </div>
@@ -481,10 +481,11 @@ export function Gallery({ onLoginRequired }: { onLoginRequired?: () => void }) {
               </div>
 
               {/* Info Bar Modal */}
-              <div className="p-5 border-t border-cyan-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-b from-transparent to-[#00080d]/60">
+              <div className="p-5 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-b from-transparent to-[#00080d]/60"
+                style={{ borderTopColor: `${theme.primary}20` }}>
                 <div className="min-w-0">
                   <h3 className="text-white font-bold text-lg mb-1 truncate">{selectedItem.title}</h3>
-                  <span className="text-cyan-300/60 text-xs uppercase font-semibold tracking-wider">
+                  <span className="text-xs uppercase font-semibold tracking-wider" style={{ color: `${theme.primary}99` }}>
                     {isYouTube(selectedItem.url) ? 'Video YouTube'
                       : isTikTok(selectedItem.url) ? 'Video TikTok'
                       : isInstagram(selectedItem.url) ? 'Instagram Post'

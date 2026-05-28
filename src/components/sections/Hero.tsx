@@ -115,7 +115,7 @@ export function Hero() {
   ];
 
   return (
-    <section id="home" className="relative min-h-screen pt-32 pb-24 px-6 flex flex-col justify-center bg-[#000a0f] overflow-hidden">
+    <section id="home" className="relative min-h-screen pt-32 pb-24 px-6 flex flex-col justify-center overflow-hidden" style={{ background: `linear-gradient(180deg, ${theme.primary}0a 0%, #000305 60%, #000000 100%)` }}>
       
       {/* ── DYNAMIC BACKGROUND MEDIA (IMAGE / VIDEO) ── */}
       <div className="absolute inset-0 z-0">

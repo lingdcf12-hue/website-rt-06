@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { motion } from 'motion/react';
 import { Home, Calendar, Bell, Image, Mail, Shield } from 'lucide-react';
 import { Navbar } from './components/layout/Navbar';
@@ -18,6 +18,28 @@ import { toast } from 'sonner';
 import { ThemeProvider, useTheme } from './lib/ThemeContext';
 import './styles/animations.css';
 
+// ── Background layer — memo agar tidak re-render saat rainbow cycle tick ──
+// Hanya re-render saat aurora class berubah (ganti tema manual)
+const AppBackground = memo(function AppBackground({
+  aurora1, aurora2, aurora3, primary,
+}: {
+  aurora1: string; aurora2: string; aurora3: string; primary: string;
+}) {
+  return (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" style={{ contain: 'strict' }}>
+      {/* Aurora blobs — blur dikurangi agar ringan, will-change di CSS */}
+      <div className={`absolute -top-[20%] -left-[10%] w-[55%] h-[55%] rounded-full ${aurora1} blur-[100px] animate-aurora`} />
+      <div className={`absolute top-[5%] -right-[15%] w-[60%] h-[60%] rounded-full ${aurora2} blur-[110px] animate-aurora-reverse`} />
+      <div className={`absolute -bottom-[15%] left-[15%] w-[55%] h-[55%] rounded-full ${aurora3} blur-[100px] animate-aurora-slow`} />
+      {/* Center glow — pakai CSS var agar tidak re-render saat rainbow */}
+      <div
+        className="absolute top-[30%] left-[30%] w-[40%] h-[40%] rounded-full blur-[120px] animate-pulse"
+        style={{ background: `${primary}0e` }}
+      />
+    </div>
+  );
+});
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -32,7 +54,10 @@ function AppInner() {
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'reset-password'>('login');
   const { user, loading: authLoading } = useAuth();
-  const { theme } = useTheme();
+  const { theme, baseTheme } = useTheme();
+
+  // Gunakan baseTheme untuk background agar tidak re-render tiap rainbow tick
+  const bgTheme = baseTheme.id === 'rainbow-cycle' ? { primary: '#06b6d4', aurora1: 'bg-cyan-500/10', aurora2: 'bg-purple-500/10', aurora3: 'bg-pink-600/10' } : baseTheme;
 
   // Track active section via IntersectionObserver
   useEffect(() => {
@@ -96,35 +121,21 @@ function AppInner() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden bg-[#000305] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#001a24] via-[#000305] to-[#000000]">
+    <div
+      className="relative min-h-screen w-full overflow-x-hidden"
+      style={{
+        background: `radial-gradient(ellipse at top right, color-mix(in srgb, ${bgTheme.primary} 10%, #000305) 0%, #000305 45%, #000000 100%)`,
+      }}
+    >
       <Toaster position="top-center" expand={true} richColors />
-      
-      {/* ── PREMIUM AESTHETIC BACKGROUND (GLOBAL) ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        
-        {/* Subtle grid pattern for texture */}
-        <div 
-          className="absolute inset-0 opacity-[0.03] mix-blend-screen"
-          style={{ 
-            backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', 
-            backgroundSize: '40px 40px' 
-          }}
-        />
 
-        {/* Animated Aurora Glows */}
-        <div className={`absolute -top-[20%] -left-[10%] w-[60%] h-[60%] rounded-full ${theme.aurora1} blur-[130px] animate-aurora`} />
-        <div className={`absolute top-[10%] -right-[20%] w-[70%] h-[70%] rounded-full ${theme.aurora2} blur-[140px] animate-aurora-reverse`} />
-        <div className={`absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] rounded-full ${theme.aurora3} blur-[130px] animate-aurora-slow`} />
-        <div className="absolute top-[30%] left-[30%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[150px] animate-pulse" />
-
-        {/* Premium Noise Overlay for Glassmorphism effect */}
-        <div 
-          className="absolute inset-0 opacity-[0.025] mix-blend-overlay"
-          style={{ 
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` 
-          }}
-        />
-      </div>
+      {/* Background — memo, hanya re-render saat ganti tema manual */}
+      <AppBackground
+        aurora1={bgTheme.aurora1}
+        aurora2={bgTheme.aurora2}
+        aurora3={bgTheme.aurora3}
+        primary={bgTheme.primary}
+      />
 
       {/* Navbar */}
       <Navbar

@@ -186,6 +186,18 @@ export const THEMES: Theme[] = [
     textAccent: 'teal-400', textMuted: 'teal-200', borderColor: 'teal-400',
     aurora1: 'bg-teal-400/10', aurora2: 'bg-cyan-300/10', aurora3: 'bg-emerald-500/10',
   },
+  // 14. Rainbow Cycle — auto-rotates through all themes
+  {
+    id: 'rainbow-cycle',
+    name: 'Rainbow Cycle',
+    emoji: '🌈',
+    gradFrom: 'cyan-500', gradTo: 'purple-500',
+    primary: '#06b6d4', secondary: '#a855f7',
+    glow: 'rgba(6,182,212,0.6)', glowLight: 'rgba(6,182,212,0.2)',
+    bgTint: 'cyan-900', bgTint2: 'purple-900',
+    textAccent: 'cyan-400', textMuted: 'cyan-200', borderColor: 'cyan-500',
+    aurora1: 'bg-cyan-500/10', aurora2: 'bg-purple-500/10', aurora3: 'bg-pink-600/10',
+  },
 ];
 
 export const DEFAULT_THEME_ID = 'cyan-teal';

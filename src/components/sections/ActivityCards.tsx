@@ -76,7 +76,7 @@ export function ActivityCards() {
         </motion.div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-cyan-400">
+          <div className="flex flex-col items-center justify-center py-20" style={{ color: theme.primary }}>
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
             <p className="text-lg font-medium">Memuat Pengumuman Terbaru...</p>
           </div>

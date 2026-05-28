@@ -77,27 +77,30 @@
 
 @keyframes aurora-spin {
   0% {
-    transform: rotate(0deg) scale(1) translate(0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   33% {
-    transform: rotate(120deg) scale(1.1) translate(20px, -20px);
+    transform: translate3d(20px, -20px, 0) scale(1.08);
   }
   66% {
-    transform: rotate(240deg) scale(0.9) translate(-20px, 20px);
+    transform: translate3d(-20px, 20px, 0) scale(0.94);
   }
   100% {
-    transform: rotate(360deg) scale(1) translate(0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
 .animate-aurora {
-  animation: aurora-spin 30s linear infinite;
+  animation: aurora-spin 30s ease-in-out infinite;
+  will-change: transform;
 }
 
 .animate-aurora-reverse {
-  animation: aurora-spin 35s linear infinite reverse;
+  animation: aurora-spin 38s ease-in-out infinite reverse;
+  will-change: transform;
 }
 
 .animate-aurora-slow {
-  animation: aurora-spin 45s linear infinite;
+  animation: aurora-spin 50s ease-in-out infinite;
+  will-change: transform;
 }

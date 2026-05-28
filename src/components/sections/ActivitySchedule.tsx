@@ -96,7 +96,7 @@ export function ActivitySchedule({ onLoginRequired }: { onLoginRequired?: () => 
         </motion.div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-cyan-400">
+          <div className="flex flex-col items-center justify-center py-20" style={{ color: theme.primary }}>
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
             <p className="text-lg font-medium">Menghubungkan ke Database Cloud...</p>
           </div>
@@ -106,8 +106,7 @@ export function ActivitySchedule({ onLoginRequired }: { onLoginRequired?: () => 
             <h3 className="text-2xl font-bold text-white mb-2">Belum Ada Jadwal</h3>
             <p className="text-white/50">Data jadwal akan muncul di sini setelah diinput melalui dashboard admin.</p>
           </div>
-        ) : (
-          <>
+        ) : (          <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AnimatePresence mode="popLayout">
                 {currentSchedules.map((schedule, index) => (

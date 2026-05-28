@@ -251,12 +251,15 @@ export function Navbar({
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.85, opacity: 0, y: 20 }}
               transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-              className="relative w-full max-w-sm bg-gradient-to-br from-[#000d14] to-[#001a24] border border-white/10 rounded-3xl shadow-[0_0_60px_rgba(0,0,0,0.5)] overflow-hidden"
-              style={{ borderColor: `${theme.primary}20` }}
+              className="relative w-full max-w-sm rounded-3xl shadow-[0_0_60px_rgba(0,0,0,0.5)] overflow-hidden"
+              style={{
+                background: `linear-gradient(135deg, color-mix(in srgb, ${theme.primary} 8%, #000d14), color-mix(in srgb, ${theme.primary} 4%, #001a24))`,
+                border: `1px solid ${theme.primary}25`,
+              }}
             >
               {/* Glow decorations */}
-              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-red-500/10 blur-[60px] pointer-events-none" />
-              <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-cyan-500/10 blur-[60px] pointer-events-none" />
+              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[60px] pointer-events-none" style={{ background: `${theme.primary}15` }} />
+              <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full blur-[60px] pointer-events-none" style={{ background: `${theme.secondary}10` }} />
 
               <div className="relative z-10 p-8 text-center">
                 {/* Icon */}
@@ -264,9 +267,14 @@ export function Navbar({
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-5"
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.primary}20, ${theme.secondary}10)`,
+                    border: `1px solid ${theme.primary}35`,
+                    boxShadow: `0 0 30px ${theme.glow}20`,
+                  }}
                 >
-                  <LogOut className="w-7 h-7 text-red-400" />
+                  <LogOut className="w-7 h-7" style={{ color: theme.primary }} />
                 </motion.div>
 
                 {/* Text */}
@@ -290,10 +298,14 @@ export function Navbar({
                     Batal
                   </motion.button>
                   <motion.button
-                    whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(239,68,68,0.4)' }}
+                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleLogoutConfirm}
-                    className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-red-500/80 to-red-600/80 hover:from-red-500 hover:to-red-600 border border-red-500/40 text-white font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3 rounded-2xl text-white font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                    style={{
+                      background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+                      boxShadow: `0 0 20px ${theme.glow}40`,
+                    }}
                   >
                     <LogOut className="w-4 h-4" />
                     Ya, Logout

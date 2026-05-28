@@ -192,4 +192,77 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+
+  /* ── Performance: promote aurora layers ke GPU ── */
+  .animate-aurora,
+  .animate-aurora-reverse,
+  .animate-aurora-slow {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* ── Smooth scroll native ── */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* ── Reduce motion untuk accessibility & low-end device ── */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-aurora,
+    .animate-aurora-reverse,
+    .animate-aurora-slow,
+    .animate-pulse {
+      animation: none !important;
+    }
+  }
+  /* Pakai CSS variable tema yang di-inject oleh applyThemeToCss() */
+  input[type="radio"],
+  input[type="checkbox"] {
+    accent-color: var(--theme-primary, #06b6d4);
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  /* ── Override select dropdown ── */
+  select {
+    color-scheme: dark;
+    accent-color: var(--theme-primary, #06b6d4);
+  }
+
+  select option {
+    background-color: #0b1628;
+    color: white;
+  }
+
+  select option:checked,
+  select option:hover {
+    background-color: var(--theme-primary, #06b6d4);
+    color: white;
+  }
+
+  /* ── Override browser autofill background ── */
+  /* Pakai inset box-shadow trick agar background tetap gelap sesuai tema */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0.05) inset !important;
+    box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0.05) inset !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+    transition: background-color 99999s ease-in-out 0s;
+  }
+
+  /* Saat input autofill sedang fokus — pakai CSS var tema */
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow:
+      0 0 0 9999px rgba(255, 255, 255, 0.08) inset,
+      0 0 0 3px color-mix(in srgb, var(--theme-primary, #06b6d4) 24%, transparent) !important;
+    box-shadow:
+      0 0 0 9999px rgba(255, 255, 255, 0.08) inset,
+      0 0 0 3px color-mix(in srgb, var(--theme-primary, #06b6d4) 24%, transparent) !important;
+    border-color: color-mix(in srgb, var(--theme-primary, #06b6d4) 70%, transparent) !important;
+  }
 }
