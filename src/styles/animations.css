@@ -74,3 +74,30 @@
 .delay-2000 {
   animation-delay: 2s;
 }
+
+@keyframes aurora-spin {
+  0% {
+    transform: rotate(0deg) scale(1) translate(0, 0);
+  }
+  33% {
+    transform: rotate(120deg) scale(1.1) translate(20px, -20px);
+  }
+  66% {
+    transform: rotate(240deg) scale(0.9) translate(-20px, 20px);
+  }
+  100% {
+    transform: rotate(360deg) scale(1) translate(0, 0);
+  }
+}
+
+.animate-aurora {
+  animation: aurora-spin 30s linear infinite;
+}
+
+.animate-aurora-reverse {
+  animation: aurora-spin 35s linear infinite reverse;
+}
+
+.animate-aurora-slow {
+  animation: aurora-spin 45s linear infinite;
+}

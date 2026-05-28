@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import {
   Plus, Trash2, X, Calendar, Bell, Megaphone,
-  Heart, Gift, Music, Book, Shield, LogOut, Loader2, Edit2, Check, Mail, MessageSquare, Image as ImageIcon
+  Heart, Gift, Music, Book, Shield, LogOut, Loader2, Edit2, Check, Mail, MessageSquare, Image as ImageIcon, Settings, Camera, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ADMIN_PASSWORD = 'rt6rw1admin';
-
-const GRADIENT_OPTIONS = [
-  { label: 'Cyan → Teal', value: 'from-cyan-500 to-teal-500' },
-  { label: 'Teal → Emerald', value: 'from-teal-500 to-emerald-500' },
-  { label: 'Emerald → Cyan', value: 'from-emerald-500 to-cyan-500' },
-  { label: 'Cyan → Emerald', value: 'from-cyan-500 to-emerald-500' },
-  { label: 'Purple → Cyan', value: 'from-purple-500 to-cyan-500' },
-  { label: 'Blue → Teal', value: 'from-blue-500 to-teal-500' },
-];
 
 const ICON_OPTIONS = ['Bell', 'Megaphone', 'Heart', 'Gift', 'Music', 'Book'];
 const ICON_MAP: Record<string, any> = { Bell, Megaphone, Heart, Gift, Music, Book };
@@ -25,10 +16,10 @@ const emptySchedule = { title: '', date: '', time: '', location: '', attendees: 
 const emptyActivity = { title: '', description: '', badge: 'Info', icon_name: 'Bell', gradient: 'from-cyan-500 to-teal-500' };
 const emptyGalleryItem = { title: '', type: 'image', gradient: 'from-cyan-500 to-teal-500', url: '', likes: 0 };
 
-export function AdminPanel({ onClose }: { onClose: () => void }) {
+export function AdminModal({ onClose }: { onClose: () => void }) {
   const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('adminAuth') === 'true');
   const [password, setPassword] = useState('');
-  const [tab, setTab] = useState<'schedules' | 'activities' | 'gallery' | 'messages'>('schedules');
+  const [tab, setTab] = useState<'schedules' | 'activities' | 'gallery' | 'messages' | 'settings' | 'logo'>('schedules');
   const [schedules, setSchedules] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [gallery, setGallery] = useState<any[]>([]);
@@ -45,22 +36,46 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
+  // States for Hero background settings
+  const [bgType, setBgType] = useState<'image' | 'video'>('image');
+  const [bgUrl, setBgUrl] = useState('');
+  const [bgFile, setBgFile] = useState<File | null>(null);
+  const [isBgUploading, setIsBgUploading] = useState(false);
+  const [isBgSaving, setIsBgSaving] = useState(false);
+
+  // States for Site Logo / Profile Photo
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState('');
+  const [isLogoUploading, setIsLogoUploading] = useState(false);
+  const [isLogoSaving, setIsLogoSaving] = useState(false);
+
   useEffect(() => {
     if (isLoggedIn) fetchAll();
   }, [isLoggedIn]);
 
   const fetchAll = async () => {
     setIsLoading(true);
-    const [s, a, m, g] = await Promise.all([
+    const [s, a, m, g, bg, logo] = await Promise.all([
       supabase.from('schedules').select('*').order('created_at', { ascending: false }),
       supabase.from('activities').select('*').order('created_at', { ascending: false }),
       supabase.from('messages').select('*').order('created_at', { ascending: false }),
       supabase.from('gallery').select('*').order('created_at', { ascending: false }),
+      supabase.from('site_settings').select('*').eq('key', 'hero_background').maybeSingle(),
+      supabase.from('site_settings').select('*').eq('key', 'site_logo').maybeSingle(),
     ]);
     setSchedules(s.data || []);
     setActivities(a.data || []);
     setMessages(m.data || []);
     setGallery(g.data || []);
+    if (bg.data && bg.data.value) {
+      setBgType(bg.data.value.type || 'image');
+      setBgUrl(bg.data.value.url || '');
+    }
+    if (logo.data && logo.data.value?.url) {
+      setLogoUrl(logo.data.value.url);
+      setLogoPreview(logo.data.value.url);
+    }
     setIsLoading(false);
   };
 
@@ -248,11 +263,14 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     fetchAll();
   };
 
-  const getGoogleDriveImageUrl = (url: string) => {
+  const getGoogleDriveImageUrl = (url: string, type: 'image' | 'video' = 'image') => {
     if (!url) return '';
     const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/) || url.match(/id=([a-zA-Z0-9-_]+)/);
     if (fileIdMatch && fileIdMatch[1]) {
-      return `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}`;
+      const fileId = fileIdMatch[1];
+      return type === 'video'
+        ? `https://drive.google.com/uc?export=download&id=${fileId}`
+        : `https://lh3.googleusercontent.com/d/${fileId}`;
     }
     return url;
   };
@@ -268,6 +286,136 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     const { error } = await supabase.from('gallery').delete().eq('id', id);
     if (error) toast.error('Gagal menghapus'); 
     else { toast.success('Galeri dihapus'); fetchAll(); }
+  };
+
+  // ── BACKGROUND MEDIA CONFIG CRUD ──
+  const saveBackgroundSetting = async () => {
+    setIsBgSaving(true);
+    let finalUrl = bgUrl;
+
+    if (bgFile) {
+      setIsBgUploading(true);
+      const uploadedUrl = await handleFileUpload(bgFile);
+      setIsBgUploading(false);
+      if (uploadedUrl) {
+        finalUrl = uploadedUrl;
+        setBgUrl(uploadedUrl);
+      } else {
+        setIsBgSaving(false);
+        return;
+      }
+    }
+
+    if (!finalUrl.trim()) {
+      setIsBgSaving(false);
+      return toast.error('Harap masukkan URL media atau upload file!');
+    }
+
+    const payload = {
+      type: bgType,
+      url: finalUrl.trim()
+    };
+
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ key: 'hero_background', value: payload });
+
+    setIsBgSaving(false);
+
+    if (error) {
+      toast.error('Gagal menyimpan pengaturan latar belakang');
+      console.error(error);
+    } else {
+      toast.success('Pengaturan latar belakang berhasil disimpan!');
+      setBgFile(null);
+      const fileInput = document.getElementById('bg-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      fetchAll();
+    }
+  };
+
+  // ── LOGO / PROFILE PHOTO ──
+  const handleLogoFileChange = (file: File) => {
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setLogoPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const saveLogoSetting = async () => {
+    setIsLogoSaving(true);
+    let finalUrl = logoUrl;
+
+    if (logoFile) {
+      setIsLogoUploading(true);
+      try {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `logo-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('site-assets')
+          .upload(fileName, logoFile, { upsert: true });
+
+        if (uploadError) {
+          if (uploadError.message.includes('not found') || uploadError.message.includes('does not exist')) {
+            throw new Error("Bucket 'site-assets' belum dibuat. Buat bucket bernama 'site-assets' di Supabase Storage dan set ke Publik.");
+          }
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('site-assets')
+          .getPublicUrl(fileName);
+
+        finalUrl = publicUrl;
+        setLogoUrl(publicUrl);
+      } catch (err: any) {
+        toast.error(err.message || 'Gagal upload foto profil');
+        setIsLogoUploading(false);
+        setIsLogoSaving(false);
+        return;
+      } finally {
+        setIsLogoUploading(false);
+      }
+    }
+
+    if (!finalUrl.trim()) {
+      setIsLogoSaving(false);
+      return toast.error('Harap upload foto atau masukkan URL foto profil!');
+    }
+
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ key: 'site_logo', value: { url: finalUrl.trim(), type: 'image' } });
+
+    setIsLogoSaving(false);
+
+    if (error) {
+      toast.error('Gagal menyimpan foto profil');
+      console.error(error);
+    } else {
+      toast.success('Foto profil website berhasil disimpan!');
+      setLogoFile(null);
+      const fileInput = document.getElementById('logo-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      fetchAll();
+    }
+  };
+
+  const removeLogo = async () => {
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ key: 'site_logo', value: { url: '', type: 'image' } });
+
+    if (error) {
+      toast.error('Gagal menghapus foto profil');
+    } else {
+      setLogoUrl('');
+      setLogoPreview('');
+      setLogoFile(null);
+      toast.success('Foto profil dihapus, kembali ke inisial RT');
+      fetchAll();
+    }
   };
 
   // ── MESSAGES ──
@@ -350,12 +498,14 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <div className="p-6 md:p-8">
               {/* Tabs */}
-              <div className="flex gap-2 mb-8 p-1 rounded-2xl bg-white/5 border border-white/5 w-fit">
+              <div className="flex flex-wrap gap-2 mb-8 p-1 rounded-2xl bg-white/5 border border-white/5 w-fit">
                 {[
                   { key: 'schedules', label: 'Jadwal Aktivitas', icon: Calendar },
                   { key: 'activities', label: 'Kegiatan & Pengumuman', icon: Bell },
                   { key: 'gallery', label: 'Galeri Warga', icon: ImageIcon },
                   { key: 'messages', label: 'Pesan Masuk', icon: Mail },
+                  { key: 'logo', label: 'Foto Profil', icon: Camera },
+                  { key: 'settings', label: 'Pengaturan Latar', icon: Settings },
                 ].map(({ key, label, icon: Icon }) => (
                   <button key={key} onClick={() => setTab(key as any)}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -397,17 +547,6 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                       <div>
                         <label className={labelClass}>Target Peserta</label>
                         <input type="number" min="0" className={inputClass} placeholder="0" value={scheduleForm.attendees} onChange={e => setScheduleForm({ ...scheduleForm, attendees: Number(e.target.value) })} />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className={labelClass}>Warna Kartu</label>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {GRADIENT_OPTIONS.map(g => (
-                            <button key={g.value} onClick={() => setScheduleForm({ ...scheduleForm, color: g.value })}
-                              className={`px-3 py-1.5 rounded-xl text-xs border transition-all bg-gradient-to-r ${g.value} ${scheduleForm.color === g.value ? 'ring-2 ring-white scale-105' : 'opacity-60 hover:opacity-100'}`}>
-                              {g.label}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     </div>
                     <div className="flex gap-2 mt-5">
@@ -495,17 +634,6 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                               </button>
                             );
                           })}
-                        </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className={labelClass}>Warna Kartu</label>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {GRADIENT_OPTIONS.map(g => (
-                            <button key={g.value} onClick={() => setActivityForm({ ...activityForm, gradient: g.value })}
-                              className={`px-3 py-1.5 rounded-xl text-xs border transition-all bg-gradient-to-r ${g.value} ${activityForm.gradient === g.value ? 'ring-2 ring-white scale-105' : 'opacity-60 hover:opacity-100'}`}>
-                              {g.label}
-                            </button>
-                          ))}
                         </div>
                       </div>
                     </div>
@@ -646,18 +774,6 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                           </div>
                         </div>
                       </div>
-
-                      <div className="md:col-span-2">
-                        <label className={labelClass}>Warna Efek Glow Kartu</label>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {GRADIENT_OPTIONS.map(g => (
-                            <button key={g.value} onClick={() => setGalleryForm({ ...galleryForm, gradient: g.value })}
-                              className={`px-3 py-1.5 rounded-xl text-xs border transition-all bg-gradient-to-r ${g.value} ${galleryForm.gradient === g.value ? 'ring-2 ring-white scale-105' : 'opacity-60 hover:opacity-100'}`}>
-                              {g.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                     
                     <div className="flex gap-2 mt-5">
@@ -786,6 +902,300 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                             </div>
                           </motion.div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── LOGO / FOTO PROFIL TAB ── */}
+              {tab === 'logo' && (
+                <div className="space-y-8 animate-fade-in">
+                  {/* Upload Section */}
+                  <div className="p-6 rounded-3xl bg-white/3 border border-cyan-500/10">
+                    <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-cyan-400" />
+                      Foto Profil Website
+                    </h3>
+                    <p className="text-cyan-300/50 text-sm mb-6">
+                      Foto ini akan tampil di lingkaran logo navbar. Foto akan otomatis di-crop agar pas tanpa terpotong.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                      {/* Preview */}
+                      <div className="flex flex-col items-center gap-4">
+                        <p className={labelClass}>Pratinjau Logo</p>
+                        <div className="relative group">
+                          {/* Outer glow ring */}
+                          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 p-0.5 shadow-[0_0_30px_rgba(6,182,212,0.5)]">
+                            <div className="w-full h-full rounded-full overflow-hidden bg-[#000d14] flex items-center justify-center">
+                              {logoPreview ? (
+                                <img
+                                  src={logoPreview}
+                                  alt="Logo Preview"
+                                  className="w-full h-full object-cover object-center"
+                                />
+                              ) : (
+                                <span className="text-white font-bold text-3xl select-none">RT</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Overlay hint */}
+                          <label
+                            htmlFor="logo-file-input"
+                            className="absolute inset-0 rounded-full flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <Camera className="w-8 h-8 text-white" />
+                          </label>
+                        </div>
+                        <p className="text-cyan-300/40 text-xs text-center">
+                          Hover foto untuk ganti · Ukuran apapun akan pas
+                        </p>
+                        {logoPreview && (
+                          <button
+                            onClick={removeLogo}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus Foto
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Upload Controls */}
+                      <div className="space-y-5">
+                        {/* File Upload */}
+                        <div>
+                          <label className={labelClass}>Upload Foto dari Perangkat</label>
+                          <label
+                            htmlFor="logo-file-input"
+                            className="flex flex-col items-center justify-center gap-3 w-full py-8 rounded-2xl border-2 border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-white/3 hover:bg-white/5 cursor-pointer transition-all group"
+                          >
+                            <div className="p-3 rounded-2xl bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-all">
+                              <Upload className="w-6 h-6 text-cyan-400" />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-white text-sm font-medium">Klik untuk pilih foto</p>
+                              <p className="text-cyan-300/40 text-xs mt-1">JPG, PNG, WebP, SVG · Maks 5MB</p>
+                            </div>
+                            {logoFile && (
+                              <p className="text-cyan-400 text-xs font-medium px-3 py-1 rounded-full bg-cyan-500/10">
+                                ✓ {logoFile.name}
+                              </p>
+                            )}
+                          </label>
+                          <input
+                            id="logo-file-input"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) handleLogoFileChange(file);
+                            }}
+                          />
+                        </div>
+
+                        {/* OR divider */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-px bg-white/10" />
+                          <span className="text-cyan-300/40 text-xs">atau</span>
+                          <div className="flex-1 h-px bg-white/10" />
+                        </div>
+
+                        {/* URL Input */}
+                        <div>
+                          <label className={labelClass}>Link URL Foto Langsung</label>
+                          <input
+                            className={inputClass}
+                            placeholder="https://example.com/foto-logo.png"
+                            value={logoFile ? '' : logoUrl}
+                            disabled={!!logoFile}
+                            onChange={e => {
+                              setLogoUrl(e.target.value);
+                              setLogoPreview(e.target.value);
+                            }}
+                          />
+                          <p className="text-xs text-cyan-300/40 mt-1">
+                            Gunakan jika foto sudah ada di internet (Google Drive, Imgur, dll.)
+                          </p>
+                        </div>
+
+                        {/* Save Button */}
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={saveLogoSetting}
+                          disabled={isLogoSaving || isLogoUploading || (!logoFile && !logoUrl.trim())}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-40 transition-all"
+                        >
+                          {isLogoUploading ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Mengunggah foto...</>
+                          ) : isLogoSaving ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+                          ) : (
+                            <><Check className="w-4 h-4" /> Simpan Foto Profil</>
+                          )}
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info Card */}
+                  <div className="p-5 rounded-3xl bg-cyan-500/5 border border-cyan-500/20">
+                    <h4 className="text-cyan-300 font-semibold text-sm mb-2 flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      Tips Foto Profil
+                    </h4>
+                    <ul className="text-cyan-300/60 text-xs space-y-1.5 list-disc list-inside">
+                      <li>Gunakan foto persegi (1:1) agar hasil terbaik</li>
+                      <li>Resolusi minimal 200×200 px untuk tampilan tajam</li>
+                      <li>Format PNG dengan background transparan sangat cocok untuk logo</li>
+                      <li>Foto akan otomatis di-crop ke lingkaran tanpa terpotong</li>
+                      <li>Bucket <code className="bg-white/10 px-1 rounded">site-assets</code> harus sudah dibuat di Supabase Storage (Public)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SETTINGS TAB ── */}
+              {tab === 'settings' && (
+                <div className="space-y-8 animate-fade-in">
+                  <div className="p-6 rounded-3xl bg-white/3 border border-cyan-500/10">
+                    <h3 className="text-white font-semibold mb-5 flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-cyan-400" />
+                      Pengaturan Latar Belakang Beranda
+                    </h3>
+
+                    <div className="grid grid-cols-1 gap-6">
+                      
+                      <div>
+                        <label className={labelClass}>Tipe Media *</label>
+                        <select 
+                          className={inputClass} 
+                          value={bgType} 
+                          onChange={e => setBgType(e.target.value as any)}
+                        >
+                          <option value="image">Foto (Image)</option>
+                          <option value="video">Video (MP4 / WebM)</option>
+                        </select>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-white/5 border border-cyan-500/10 space-y-4">
+                        <div className="flex gap-4">
+                          <span className="text-cyan-300 font-semibold text-sm">Metode Media:</span>
+                          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="bg-media-method" 
+                              defaultChecked 
+                              onChange={() => {
+                                const elUrl = document.getElementById('bg-url-container');
+                                const elFile = document.getElementById('bg-file-container');
+                                if (elUrl) elUrl.style.display = 'none';
+                                if (elFile) elFile.style.display = 'block';
+                              }} 
+                            />
+                            Upload File Baru
+                          </label>
+                          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="bg-media-method" 
+                              onChange={() => {
+                                const elUrl = document.getElementById('bg-url-container');
+                                const elFile = document.getElementById('bg-file-container');
+                                if (elUrl) elUrl.style.display = 'block';
+                                if (elFile) elFile.style.display = 'none';
+                              }} 
+                            />
+                            Link URL Langsung
+                          </label>
+                        </div>
+
+                        <div id="bg-file-container">
+                          <label className={labelClass}>Upload File (Foto / Video) *</label>
+                          <input 
+                            id="bg-file-input"
+                            type="file" 
+                            accept={bgType === 'video' ? 'video/*' : 'image/*'} 
+                            className={inputClass + ' file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-white hover:file:bg-cyan-600'} 
+                            onChange={e => setBgFile(e.target.files?.[0] || null)} 
+                          />
+                          <p className="text-xs text-cyan-300/40 mt-1">Upload ke storage Supabase. File akan otomatis menggantikan latar belakang beranda saat disimpan.</p>
+                        </div>
+
+                        <div id="bg-url-container" style={{ display: 'none' }}>
+                          <label className={labelClass}>Link URL Media *</label>
+                          <input 
+                            className={inputClass} 
+                            placeholder="cth: https://images.unsplash.com/... atau link mp4" 
+                            value={bgUrl} 
+                            onChange={e => setBgUrl(e.target.value)} 
+                          />
+                          <p className="text-xs text-cyan-300/40 mt-1">Gunakan link langsung (.jpg, .png, .mp4, dll.) dari host luar.</p>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <div className="flex gap-2 mt-6">
+                      <motion.button 
+                        whileHover={{ scale: 1.02 }} 
+                        whileTap={{ scale: 0.98 }} 
+                        onClick={saveBackgroundSetting} 
+                        disabled={isBgSaving || isBgUploading}
+                        className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50"
+                      >
+                        {isBgSaving || isBgUploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        {isBgUploading ? 'Mengunggah file...' : isBgSaving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Preview Container */}
+                  <div className="p-6 rounded-3xl bg-white/3 border border-white/5">
+                    <h3 className="text-white font-semibold mb-4">Pratinjau Media Saat Ini</h3>
+                    {bgUrl ? (
+                      <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 bg-black flex items-center justify-center">
+                        {bgType === 'video' ? (
+                          (() => {
+                            const ytMatch = bgUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+                            if (ytMatch) {
+                              return (
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=1`}
+                                  className="w-full h-full object-cover"
+                                  frameBorder="0"
+                                  allow="autoplay; encrypted-media"
+                                  allowFullScreen
+                                />
+                              );
+                            }
+                            return (
+                              <video 
+                                src={bgUrl.includes('drive.google.com') ? getGoogleDriveImageUrl(bgUrl, 'video') : bgUrl} 
+                                className="w-full h-full object-cover" 
+                                controls 
+                                muted
+                              />
+                            );
+                          })()
+                        ) : (
+                          <img 
+                            src={bgUrl.includes('drive.google.com') ? getGoogleDriveImageUrl(bgUrl, 'image') : bgUrl} 
+                            alt="Background Preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-cyan-300/40 border border-dashed border-white/10 rounded-2xl">
+                        Belum ada latar belakang yang diatur, sistem menggunakan default gambar bawaan.
                       </div>
                     )}
                   </div>

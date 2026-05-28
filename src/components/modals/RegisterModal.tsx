@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, User, Phone, MapPin, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 interface RegisterModalProps {
   isOpen: boolean;
